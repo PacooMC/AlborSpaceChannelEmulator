@@ -1,16 +1,30 @@
 import React from 'react';
+import ErrorBoundary from '../common/ErrorBoundary';
+import ScenarioEditorFallback from '../scenario_editor/ScenarioEditorFallback';
+import {
+  ReactFlowProvider
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
-const ScenarioEditorView: React.FC = () => {
+// Import the actual editor component with a dynamic import to allow error boundary to catch any issues
+// Keep using React.lazy for safety, even with the patch
+const ScenarioEditorContent = React.lazy(() => import('../scenario_editor/ScenarioEditorContent'));
+
+// Props interface
+interface ScenarioEditorViewProps {
+  scenarioId: string | null; // Receive scenarioId if needed
+}
+
+const ScenarioEditorView: React.FC<ScenarioEditorViewProps> = ({ scenarioId }) => {
   return (
-    <div className="text-white">
-      <h1 className="text-2xl font-semibold mb-4">Scenario Editor</h1>
-      <div className="bg-albor-bg-dark/80 backdrop-blur-sm p-4 rounded border border-albor-bg-dark/50 h-96 flex items-center justify-center">
-        <p className="text-albor-dark-gray">Node Workspace / Canvas Area Placeholder</p>
-      </div>
-       <div className="mt-4 bg-albor-bg-dark/80 backdrop-blur-sm p-4 rounded border border-albor-bg-dark/50 h-24 flex items-center justify-center">
-        <p className="text-albor-dark-gray">Scenario Timeline Placeholder</p>
-      </div>
-    </div>
+    // Keep the ErrorBoundary as a safety net
+    <ErrorBoundary fallback={<ScenarioEditorFallback />}>
+      <React.Suspense fallback={<div className="flex items-center justify-center h-full">Loading editor...</div>}>
+        <ReactFlowProvider>
+          <ScenarioEditorContent scenarioId={scenarioId} />
+        </ReactFlowProvider>
+      </React.Suspense>
+    </ErrorBoundary>
   );
 };
 

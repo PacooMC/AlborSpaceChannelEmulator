@@ -1,74 +1,15 @@
 import React from 'react';
-import { Server, TerminalSquare, Satellite, RadioTower, Smartphone, Plug, Beaker, Circle, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react'; // Added Info for legend
+import { Server, TerminalSquare, Satellite, RadioTower, Smartphone, Plug, Beaker, Circle, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
+// Import data and types from content files
+import { dummySdrData, Port, PortStatus, SdrDevice } from '../../content/sdr';
+import { NodeType } from '../../content/mapData'; // Import NodeType from mapData
 
-// --- Data Structures (Keep as before) ---
-type NodeType = 'SAT' | 'GS' | 'UE';
-type SignalType = 'physical' | 'simulated';
-type PortStatus = 'available' | 'assigned' | 'active' | 'conflict' | 'error';
+// --- Data Structures & Types are now imported ---
 
-interface PortAssignment {
-  nodeId: string;
-  nodeType: NodeType;
-  signalType: SignalType;
-  config?: {
-    frequency?: string;
-    bandwidth?: string;
-    power?: number;
-  };
-}
+// --- Dummy Data is now imported ---
 
-interface Port {
-  id: string;
-  type: 'TX' | 'RX' | 'TXRX';
-  status: PortStatus;
-  assignment?: PortAssignment;
-}
-
-interface SdrDevice {
-  id: string;
-  name: string;
-  ports: Port[];
-}
-
-// --- Dummy Data (Keep as before) ---
-const dummySdrData: SdrDevice[] = [
-  {
-    id: 'sdr-01',
-    name: 'SDR-01 (Ettus X310)',
-    ports: [
-      { id: 'TX1', type: 'TX', status: 'assigned', assignment: { nodeId: 'Sat-LEO-01', nodeType: 'SAT', signalType: 'physical', config: { frequency: '2.1 GHz' } } },
-      { id: 'RX1', type: 'RX', status: 'assigned', assignment: { nodeId: 'GS-Madrid', nodeType: 'GS', signalType: 'physical' } },
-      { id: 'TX2', type: 'TX', status: 'active', assignment: { nodeId: 'Sat-LEO-01', nodeType: 'SAT', signalType: 'physical' } },
-      { id: 'RX2', type: 'RX', status: 'assigned', assignment: { nodeId: 'UE-Mobile-A', nodeType: 'UE', signalType: 'simulated' } },
-      { id: 'TX3', type: 'TX', status: 'available' },
-      { id: 'RX3', type: 'RX', status: 'available' },
-      { id: 'TX4', type: 'TX', status: 'conflict', assignment: { nodeId: 'Sat-GEO-01', nodeType: 'SAT', signalType: 'physical' } },
-      { id: 'RX4', type: 'RX', status: 'error' },
-    ],
-  },
-  {
-    id: 'sdr-02',
-    name: 'SDR-02 (NI USRP-2974)',
-    ports: [
-      { id: 'P0', type: 'TXRX', status: 'assigned', assignment: { nodeId: 'GS-Madrid', nodeType: 'GS', signalType: 'physical' } },
-      { id: 'P1', type: 'TXRX', status: 'available' },
-      { id: 'P2', type: 'TXRX', status: 'assigned', assignment: { nodeId: 'UE-Drone-X', nodeType: 'UE', signalType: 'simulated' } },
-      { id: 'P3', type: 'TXRX', status: 'available' },
-    ],
-  },
-   {
-    id: 'sdr-03',
-    name: 'SDR-03 (Simulated)',
-    ports: [
-      { id: 'SIM-TX1', type: 'TX', status: 'active', assignment: { nodeId: 'Sat-MEO-A', nodeType: 'SAT', signalType: 'simulated' } },
-      { id: 'SIM-RX1', type: 'RX', status: 'active', assignment: { nodeId: 'Sat-MEO-A', nodeType: 'SAT', signalType: 'simulated' } },
-    ],
-  },
-];
-
-
-// --- Helper Components & Functions (Keep as before) ---
-const getNodeIcon = (nodeType: NodeType) => {
+// --- Helper Components & Functions ---
+const getNodeIcon = (nodeType: NodeType) => { // Use imported NodeType
   switch (nodeType) {
     case 'SAT': return <Satellite size={12} className="opacity-80" />;
     case 'GS': return <RadioTower size={12} className="opacity-80" />;
@@ -77,7 +18,7 @@ const getNodeIcon = (nodeType: NodeType) => {
   }
 };
 
-const getStatusInfo = (status: PortStatus): { color: string; icon: React.ElementType; label: string } => {
+const getStatusInfo = (status: PortStatus): { color: string; icon: React.ElementType; label: string } => { // Use imported PortStatus
   switch (status) {
     case 'available': return { color: 'bg-green-500/30 border-green-500/50 text-green-300', icon: Circle, label: 'Available' };
     case 'assigned': return { color: 'bg-blue-500/30 border-blue-500/50 text-blue-300', icon: TerminalSquare, label: 'Assigned' };
@@ -89,7 +30,7 @@ const getStatusInfo = (status: PortStatus): { color: string; icon: React.Element
 };
 
 interface PortCellProps {
-  port: Port;
+  port: Port; // Use imported Port type
 }
 
 const PortCell: React.FC<PortCellProps> = ({ port }) => {
@@ -126,7 +67,7 @@ const PortCell: React.FC<PortCellProps> = ({ port }) => {
 
 // --- Legend Component ---
 const Legend: React.FC = () => {
-  const statuses: PortStatus[] = ['available', 'assigned', 'active', 'conflict', 'error'];
+  const statuses: PortStatus[] = ['available', 'assigned', 'active', 'conflict', 'error']; // Use imported PortStatus
   return (
     <div className="mt-4 pt-3 border-t border-albor-bg-dark/50 text-xs text-albor-light-gray">
       <h4 className="font-semibold mb-2 flex items-center"><Info size={14} className="mr-1 text-albor-dark-gray"/>Legend:</h4>
@@ -172,10 +113,12 @@ const Legend: React.FC = () => {
 // --- Main Component ---
 type PortAssignmentMapProps = {
   className?: string;
+  scenarioId?: string | null; // Add scenarioId prop if filtering is needed later
 };
 
 const PortAssignmentMap: React.FC<PortAssignmentMapProps> = ({ className }) => {
-  const sdrs = dummySdrData;
+  // Use imported data directly. Add filtering based on scenarioId if needed in the future.
+  const sdrs: SdrDevice[] = dummySdrData;
 
   return (
     <div className={`bg-albor-bg-dark/80 backdrop-blur-sm p-4 rounded border border-albor-bg-dark/50 ${className}`}>
@@ -197,7 +140,6 @@ const PortAssignmentMap: React.FC<PortAssignmentMapProps> = ({ className }) => {
           ))}
         </div>
       </div>
-      {/* Add the Legend */}
       <Legend />
     </div>
   );
