@@ -27,11 +27,13 @@ interface ChartTileProps {
 }
 const ChartTile: React.FC<ChartTileProps> = ({ chartId, title, icon: Icon, children, className = '', onMaximizeClick }) => {
     return (
+      // Ensure the tile itself is a flex column and takes full height of its grid cell
       <div className={`
         bg-albor-bg-dark/80 backdrop-blur-sm rounded border border-albor-bg-dark/50
-        flex flex-col overflow-hidden relative p-2 chart-tile-bg
+        flex flex-col overflow-hidden relative p-2 chart-tile-bg h-full
         ${className}
       `}>
+        {/* Header */}
         <div className="flex justify-between items-center mb-1 flex-shrink-0 px-1">
           <div className="flex items-center space-x-1.5">
              {Icon && <Icon size={12} className="text-albor-dark-gray" />}
@@ -45,16 +47,19 @@ const ChartTile: React.FC<ChartTileProps> = ({ chartId, title, icon: Icon, child
             <Maximize size={12} />
           </button>
         </div>
-        {/* CRUCIAL: flex-1 AND min-h-0 for flex child height calculation */}
-        <div className="flex-1 min-h-0 w-full h-full overflow-hidden">
-          {children}
+        {/* Content Area: flex-1 and min-h-0 are key for flexbox height calculation */}
+        <div className="flex-1 min-h-0 w-full relative">
+          {/* Position absolute ensures children fill this div */}
+          <div className="absolute inset-0">
+             {children}
+          </div>
         </div>
       </div>
     );
 };
 
 
-// Signal Chart Component - Simplified
+// Signal Chart Component
 interface SignalChartProps {
   data: SignalMetrics[];
   metric: keyof SignalMetrics;
@@ -64,31 +69,33 @@ interface SignalChartProps {
 }
 const SignalChart: React.FC<SignalChartProps> = ({ data, metric, name, color, unit }) => {
   return (
+    // Explicit width and height for ResponsiveContainer
     <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 20 }}>
+        <LineChart data={data} margin={{ top: 5, right: 15, left: -25, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-albor-dark-gray)" strokeOpacity={0.3} />
-            <XAxis dataKey="timestamp" tickFormatter={(ts) => new Date(ts).toLocaleTimeString()} stroke="var(--color-albor-dark-gray)" fontSize={10} dy={5} interval="preserveStartEnd" />
-            <YAxis stroke="var(--color-albor-dark-gray)" fontSize={10} dx={-5} domain={['auto', 'auto']} label={{ value: unit, angle: -90, position: 'insideLeft', fill: 'var(--color-albor-dark-gray)', fontSize: 10, dx: -15 }} />
-            <Tooltip contentStyle={{ backgroundColor: 'var(--color-albor-bg-dark)', border: '1px solid var(--color-albor-dark-gray)', fontSize: '12px' }} labelFormatter={(ts) => new Date(ts).toLocaleString()} formatter={(value: number) => [`${value.toFixed(2)} ${unit}`, name]} />
+            <XAxis dataKey="timestamp" tickFormatter={(ts) => new Date(ts).toLocaleTimeString()} stroke="var(--color-albor-dark-gray)" fontSize={9} dy={5} interval="preserveStartEnd" />
+            <YAxis stroke="var(--color-albor-dark-gray)" fontSize={9} dx={-3} domain={['auto', 'auto']} label={{ value: unit, angle: -90, position: 'insideLeft', fill: 'var(--color-albor-dark-gray)', fontSize: 9, dx: -10 }} />
+            <Tooltip contentStyle={{ backgroundColor: 'var(--color-albor-bg-dark)', border: '1px solid var(--color-albor-dark-gray)', fontSize: '11px' }} labelFormatter={(ts) => new Date(ts).toLocaleString()} formatter={(value: number) => [`${value.toFixed(2)} ${unit}`, name]} />
             <Line type="monotone" dataKey={metric} name={name} stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
         </LineChart>
     </ResponsiveContainer>
   );
 };
 
-// Spectrum Chart Component - Simplified
+// Spectrum Chart Component
 interface SpectrumChartProps {
   data: SpectrumDataPoint[];
 }
 const SpectrumChart: React.FC<SpectrumChartProps> = ({ data }) => {
   return (
+    // Explicit width and height for ResponsiveContainer
     <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 20 }}>
+        <AreaChart data={data} margin={{ top: 5, right: 15, left: -25, bottom: 5 }}>
             <defs> <linearGradient id="spectrumGradient" x1="0" y1="0" x2="0" y2="1"> <stop offset="5%" stopColor="var(--color-albor-orange)" stopOpacity={0.6}/> <stop offset="95%" stopColor="var(--color-albor-orange)" stopOpacity={0.1}/> </linearGradient> </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-albor-dark-gray)" strokeOpacity={0.3} />
-            <XAxis dataKey="frequency" type="number" domain={['dataMin', 'dataMax']} stroke="var(--color-albor-dark-gray)" fontSize={10} dy={5} tickFormatter={(freq) => `${freq.toFixed(0)}`} label={{ value: "Frequency (MHz)", position: 'insideBottom', fill: 'var(--color-albor-dark-gray)', fontSize: 10, dy: 15 }} interval="preserveStartEnd" />
-            <YAxis stroke="var(--color-albor-dark-gray)" fontSize={10} dx={-5} domain={[-100, -30]} label={{ value: "Power (dBm)", angle: -90, position: 'insideLeft', fill: 'var(--color-albor-dark-gray)', fontSize: 10, dx: -15 }} />
-            <Tooltip contentStyle={{ backgroundColor: 'var(--color-albor-bg-dark)', border: '1px solid var(--color-albor-dark-gray)', fontSize: '12px' }} labelFormatter={(freq: number) => `${freq.toFixed(2)} MHz`} formatter={(value: number) => [`${value.toFixed(1)} dBm`, "Power"]} />
+            <XAxis dataKey="frequency" type="number" domain={['dataMin', 'dataMax']} stroke="var(--color-albor-dark-gray)" fontSize={9} dy={5} tickFormatter={(freq) => `${freq.toFixed(0)}`} label={{ value: "Freq (MHz)", position: 'insideBottom', fill: 'var(--color-albor-dark-gray)', fontSize: 9, dy: 5 }} interval="preserveStartEnd" />
+            <YAxis stroke="var(--color-albor-dark-gray)" fontSize={9} dx={-3} domain={[-100, -30]} label={{ value: "Pwr (dBm)", angle: -90, position: 'insideLeft', fill: 'var(--color-albor-dark-gray)', fontSize: 9, dx: -10 }} />
+            <Tooltip contentStyle={{ backgroundColor: 'var(--color-albor-bg-dark)', border: '1px solid var(--color-albor-dark-gray)', fontSize: '11px' }} labelFormatter={(freq: number) => `${freq.toFixed(2)} MHz`} formatter={(value: number) => [`${value.toFixed(1)} dBm`, "Power"]} />
             <Area type="monotone" dataKey="power" stroke="var(--color-albor-orange)" fillOpacity={1} fill="url(#spectrumGradient)" strokeWidth={1.5} isAnimationActive={false} />
         </AreaChart>
     </ResponsiveContainer>
@@ -111,7 +118,6 @@ const EventLogPanel: React.FC<EventLogPanelProps> = ({ logs }) => {
     useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
     const getLogLevelInfo = (level: LogLevel): { icon: React.ElementType, color: string } => { switch (level) { case 'info': return { icon: Info, color: 'text-blue-400' }; case 'warn': return { icon: AlertTriangle, color: 'text-yellow-400' }; case 'error': return { icon: AlertCircle, color: 'text-red-500' }; case 'debug': return { icon: WifiOff, color: 'text-gray-500' }; default: return { icon: Info, color: 'text-gray-400' }; } };
     return (
-        // This div scrolls
         <div className="h-full w-full overflow-y-auto custom-scrollbar pr-1">
             <div className="space-y-1.5">
                 {logs.map(log => { const { icon: Icon, color } = getLogLevelInfo(log.level); return ( <div key={log.id} className="flex items-start space-x-2 text-xs animate-fade-in-short"> <Icon size={14} className={`${color} flex-shrink-0 mt-0.5`} /> <div className="flex-1"> <span className="text-albor-dark-gray mr-2"> {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} </span> {log.source && <span className="font-medium text-albor-light-gray/80 mr-1">[{log.source}]</span>} <span className="text-albor-light-gray">{log.message}</span> </div> </div> ); })}
@@ -130,8 +136,11 @@ const MaximizeModal: React.FC<MaximizeModalProps> = ({ chartId, title, icon: Ico
           <div className="flex items-center space-x-2"> {Icon && <Icon size={16} className="text-albor-dark-gray" />} <h3 className="text-base font-semibold text-albor-light-gray">{title}</h3> </div>
           <button onClick={onClose} className="p-1.5 rounded-full text-albor-dark-gray hover:text-albor-light-gray hover:bg-albor-bg-dark/50 transition-colors" title="Close" > <CloseIcon size={18} /> </button>
         </div>
-        <div className="flex-1 w-full h-full overflow-hidden min-h-0"> {/* Added min-h-0 */}
-            {children}
+        <div className="flex-1 w-full h-full overflow-hidden min-h-0">
+            {/* Position absolute ensures children fill this div */}
+            <div className="absolute inset-0">
+                {children}
+            </div>
         </div>
     </div>
 );
@@ -157,16 +166,12 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
   // Effect for default selection and data loading
   useEffect(() => {
     let currentSelection = selectedMonitorScenarioId;
-    // If no scenario is selected OR the selected one is no longer running...
     if (!currentSelection || !runningScenarios.some(s => s.id === currentSelection)) {
-      // ...select the first running scenario, or null if none are running.
       currentSelection = runningScenarios.length > 0 ? runningScenarios[0].id : null;
     }
-    // If the effective selection changed, update the state
     if (currentSelection !== selectedMonitorScenarioId) {
       setSelectedMonitorScenarioId(currentSelection);
     }
-    // Load data based on the current selection (or clear if null)
     if (currentSelection) {
       setSignalHistory(generateInitialSignalHistory(currentSelection, MAX_HISTORY));
       setSpectrumData(generateSpectrumData(currentSelection));
@@ -174,7 +179,7 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
     } else {
       setSignalHistory([]); setSpectrumData([]); setEventLogs([]);
     }
-  }, [runningScenarios, selectedMonitorScenarioId]); // Rerun when runningScenarios list changes or the selection changes
+  }, [runningScenarios, selectedMonitorScenarioId]);
 
 
   // Effect for periodic updates
@@ -217,15 +222,11 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
       if (maximizedChartId === 'spectrum') return { id: 'spectrum', title: 'Spectrum Analysis', icon: AreaChartIcon };
       if (maximizedChartId === 'summary') return { id: 'summary', title: 'Metrics Summary', icon: Table };
       if (maximizedChartId === 'eventlog') return { id: 'eventlog', title: 'Event Log', icon: List };
-      // Find the config for signal charts
       const signalConfig = chartConfigs.find(c => c.id === maximizedChartId);
       if (signalConfig) {
-          return {
-              ...signalConfig,
-              title: `${signalConfig.name} vs Time` // Add title here if needed
-          };
+          return { ...signalConfig, title: `${signalConfig.name} vs Time` };
       }
-      return null; // Should not happen if IDs are correct
+      return null;
   }, [maximizedChartId, chartConfigs]);
 
 
@@ -268,79 +269,96 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
           <div className={`flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto p-1 custom-scrollbar min-h-0`}>
 
             {/* Spectrum Chart */}
-            <div className={`lg:col-span-2`}>
+            {/* Ensure the grid item itself has a minimum height */}
+            <div className={`lg:col-span-2 min-h-[200px]`}>
               <ChartTile
-                key={`spectrum-${selectedMonitorScenarioId}`} // Add key based on scenario ID
+                key={`spectrum-${selectedMonitorScenarioId}`}
                 chartId="spectrum"
                 title="Spectrum Analysis"
                 icon={AreaChartIcon}
                 onMaximizeClick={() => handleToggleMaximize('spectrum')}
-                className="min-h-[250px]" // Give it more min height
+                // className="min-h-[200px]" // Moved min-height to parent div
               >
                 <SpectrumChart data={spectrumData} />
               </ChartTile>
             </div>
 
-            {/* Metrics Summary Table */}
-            <ChartTile
-              key={`summary-${selectedMonitorScenarioId}`} // Add key
-              chartId="summary"
-              title="Metrics Summary"
-              icon={Table}
-              onMaximizeClick={() => handleToggleMaximize('summary')}
-            >
-              <MetricsSummaryTable data={signalHistory} />
-            </ChartTile>
-
-
-            {/* Signal Metric Charts */}
-            {chartConfigs.map(config => (
+            {/* Event Log */}
+            {/* Ensure the grid item itself has a minimum height */}
+            <div className={`lg:row-span-2 min-h-[300px]`}>
               <ChartTile
-                key={`${config.id}-${selectedMonitorScenarioId}`} // Key already includes scenario ID
-                chartId={config.id}
-                title={`${config.name} vs Time`}
-                icon={config.icon}
-                onMaximizeClick={() => handleToggleMaximize(config.id)}
+                key={`eventlog-${selectedMonitorScenarioId}`}
+                chartId="eventlog"
+                title="Event Log"
+                icon={List}
+                onMaximizeClick={() => handleToggleMaximize('eventlog')}
+                // className="min-h-[300px]" // Moved min-height to parent div
               >
-                <SignalChart data={signalHistory} metric={config.metric} name={config.name} color={config.color} unit={config.unit} />
+                <EventLogPanel logs={eventLogs} />
               </ChartTile>
+            </div>
+
+            {/* Signal Metrics Charts */}
+            {chartConfigs.map(config => (
+              // Ensure the grid item itself has a minimum height
+              <div key={`${config.id}-${selectedMonitorScenarioId}`} className="min-h-[180px]">
+                <ChartTile
+                  chartId={config.id}
+                  title={config.name}
+                  icon={config.icon}
+                  onMaximizeClick={() => handleToggleMaximize(config.id)}
+                >
+                  <SignalChart
+                    data={signalHistory}
+                    metric={config.metric}
+                    name={config.name}
+                    color={config.color}
+                    unit={config.unit}
+                  />
+                </ChartTile>
+              </div>
             ))}
 
-            {/* Event Log Panel */}
-            <div className="md:col-span-2 lg:col-span-3">
-                 <ChartTile
-                    key={`log-${selectedMonitorScenarioId}`} // Add key
-                    chartId="eventlog"
-                    title="Event Log"
-                    icon={List}
-                    onMaximizeClick={() => handleToggleMaximize('eventlog')}
-                    className="min-h-[200px] max-h-[300px]" > {/* Height constraint */}
-                    <EventLogPanel logs={eventLogs} />
-                 </ChartTile>
+            {/* Metrics Summary Table */}
+            {/* Ensure the grid item itself has a minimum height */}
+            <div className="min-h-[180px]">
+              <ChartTile
+                key={`summary-${selectedMonitorScenarioId}`}
+                chartId="summary"
+                title="Metrics Summary"
+                icon={Table}
+                onMaximizeClick={() => handleToggleMaximize('summary')}
+              >
+                <MetricsSummaryTable data={signalHistory} />
+              </ChartTile>
             </div>
+
           </div>
-        )
-      }
+        )}
 
-      {/* Modal for Maximized Chart */}
+      {/* Maximized Chart Modal */}
       {maximizedChartId && maximizedChartConfig && (
-          <MaximizeModal chartId={maximizedChartId} title={maximizedChartConfig.title} icon={maximizedChartConfig.icon} onClose={handleCloseMaximize} >
-              {maximizedChartId === 'spectrum' && <SpectrumChart data={spectrumData} />}
-              {maximizedChartId === 'summary' && <MetricsSummaryTable data={signalHistory} />}
-              {maximizedChartId === 'eventlog' && <EventLogPanel logs={eventLogs} />}
-              {/* Find the correct config for signal charts before rendering */}
-              {maximizedChartConfig && chartConfigs.find(c => c.id === maximizedChartId) && (
-                  <SignalChart
-                      data={signalHistory}
-                      metric={maximizedChartConfig.metric as keyof SignalMetrics}
-                      name={maximizedChartConfig.name}
-                      color={maximizedChartConfig.color}
-                      unit={maximizedChartConfig.unit}
-                  />
-              )}
-          </MaximizeModal>
+        <MaximizeModal
+          chartId={maximizedChartId}
+          title={maximizedChartConfig.title}
+          icon={maximizedChartConfig.icon}
+          onClose={handleCloseMaximize}
+        >
+          {/* Render the correct maximized content */}
+          {maximizedChartId === 'spectrum' && <SpectrumChart data={spectrumData} />}
+          {maximizedChartId === 'summary' && <MetricsSummaryTable data={signalHistory} />}
+          {maximizedChartId === 'eventlog' && <EventLogPanel logs={eventLogs} />}
+          {chartConfigs.find(c => c.id === maximizedChartId) && (
+            <SignalChart
+              data={signalHistory}
+              metric={maximizedChartConfig.metric as keyof SignalMetrics}
+              name={maximizedChartConfig.name}
+              color={maximizedChartConfig.color}
+              unit={maximizedChartConfig.unit}
+            />
+          )}
+        </MaximizeModal>
       )}
-
     </div>
   );
 };
