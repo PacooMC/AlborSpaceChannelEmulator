@@ -30,7 +30,8 @@ import React from 'react';
               return (
                 // Added h-full and flex-col to allow inner div to scroll
                 <div className="bg-albor-bg-dark/50 p-2 flex flex-col overflow-hidden h-full">
-                  <h4 className="text-sm font-semibold text-albor-light-gray mb-1 flex-shrink-0">Link Overview</h4>
+                  {/* Updated Title */}
+                  <h4 className="text-sm font-semibold text-albor-light-gray mb-1 flex-shrink-0">Communications</h4>
                   {/* Make this div scrollable */}
                   <div className="overflow-auto flex-1 -mr-2 pr-2">
                     {scenarioType === 'realistic' ? (
