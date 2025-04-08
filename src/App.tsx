@@ -7,22 +7,24 @@ import ScenarioEditorView from './components/views/ScenarioEditorView';
 import MonitoringView from './components/views/MonitoringView';
 import SystemManagementView from './components/views/SystemManagementView';
 import SettingsView from './components/views/SettingsView';
-import { initialRunningScenarios } from './content/scenarios';
-import type { Scenario, ScenarioStatus } from './content/scenarios';
+// Import Scenario type and initial data
+import { Scenario, ScenarioStatus, initialRunningScenarios } from './content/scenarios';
 import { getScenarioList, SavedScenarioInfo } from './content/scenarioStore';
+import { getSystemSummary, SystemSummaryStats } from './content/systemSummary'; // Import summary type
 
 type ViewName = 'dashboard' | 'scenarios' | 'monitoring' | 'system' | 'settings';
 
 function App() {
   const [activeView, setActiveView] = useState<ViewName>('dashboard');
-  const [runningScenarios, setRunningScenarios] = useState<Scenario[]>(
-      initialRunningScenarios.filter(s => s.id !== 'global-overview')
-  );
-  // selectedScenarioId is now primarily for Dashboard context, Monitoring manages its own internal selection
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const [runningScenarios, setRunningScenarios] = useState<Scenario[]>(initialRunningScenarios);
+  // selectedScenarioId is NO LONGER USED by DashboardView directly, kept for potential future context needs?
+  // Let's remove it for now to avoid confusion. If needed later, we can re-add.
+  // const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [editorScenarioId, setEditorScenarioId] = useState<string | null>(null);
   const [savedScenarioListForSidebar, setSavedScenarioListForSidebar] = useState<SavedScenarioInfo[]>([]);
+  // *** NEW: State to track which scenario to monitor ***
+  const [monitoringTargetScenarioId, setMonitoringTargetScenarioId] = useState<string | null>(null);
 
   // Fetch saved scenarios for the main sidebar
   const refreshSavedListForSidebar = useCallback(async () => {
@@ -38,24 +40,6 @@ function App() {
       refreshSavedListForSidebar();
   }, [refreshSavedListForSidebar]);
 
-  // Find the full scenario object based on the selected ID (for Dashboard)
-  const selectedScenarioForDashboard = runningScenarios.find(s => s.id === selectedScenarioId) || null;
-
-  // --- Default Scenario Selection Logic for Dashboard ---
-  useEffect(() => {
-    // If navigating to Dashboard and no scenario is selected, select the first running one.
-    if (activeView === 'dashboard' && selectedScenarioId === null && runningScenarios.length > 0) {
-      console.log("App: Defaulting dashboard scenario to first running:", runningScenarios[0].id);
-      setSelectedScenarioId(runningScenarios[0].id);
-    }
-    // If dashboard is active but the selected scenario is no longer running, clear selection (or select first running)
-    else if (activeView === 'dashboard' && selectedScenarioId && !runningScenarios.some(s => s.id === selectedScenarioId)) {
-        console.log("App: Selected dashboard scenario no longer running. Clearing selection.");
-        setSelectedScenarioId(runningScenarios.length > 0 ? runningScenarios[0].id : null);
-    }
-  }, [activeView, selectedScenarioId, runningScenarios]);
-
-
   // --- Simulation Start Logic ---
   const handleStartScenario = useCallback(async (id: string, name: string) => {
     if (!id || isLoading) return;
@@ -65,45 +49,93 @@ function App() {
 
     let scenarioStarted = false;
     setRunningScenarios(prevScenarios => {
-      if (prevScenarios.some(s => s.id === id)) {
-        scenarioStarted = true; // Already running
+      const existingScenario = prevScenarios.find(s => s.id === id);
+      if (existingScenario) {
+        scenarioStarted = true;
         return prevScenarios.map(s => s.id === id ? { ...s, status: 'running' } : s);
+      } else {
+        const newScenario: Scenario = { id, name, status: 'running' };
+        scenarioStarted = true;
+        return [...prevScenarios, newScenario];
       }
-      const newScenario: Scenario = { id, name, status: 'running' };
-      scenarioStarted = true;
-      return [...prevScenarios, newScenario];
     });
 
     if (scenarioStarted) {
-        // Don't force setSelectedScenarioId here, let MonitoringView handle its selection
-        setActiveView('monitoring'); // Switch view
+        // *** Navigate to monitoring view for the started scenario ***
+        setMonitoringTargetScenarioId(id);
+        setActiveView('monitoring');
         console.log(`App: Scenario ${id} started/running, switching to monitoring view.`);
     }
     setIsLoading(false);
   }, [isLoading]);
+
+  // --- Simulation Control Handlers ---
+  const handlePauseScenario = useCallback((id: string) => {
+    console.log(`App: Pausing scenario ${id}`);
+    setRunningScenarios(prev => prev.map(s => s.id === id ? { ...s, status: 'paused' } : s));
+  }, []);
+
+  const handleResumeScenario = useCallback((id: string) => {
+    console.log(`App: Resuming scenario ${id}`);
+    setRunningScenarios(prev => prev.map(s => s.id === id ? { ...s, status: 'running' } : s));
+  }, []);
+
+  const handleStopScenario = useCallback((id: string) => {
+    console.log(`App: Stopping scenario ${id}`);
+    setRunningScenarios(prev => prev.map(s => s.id === id ? { ...s, status: 'stopped' } : s));
+    // If the stopped scenario was being monitored, clear the target
+    if (monitoringTargetScenarioId === id) {
+        setMonitoringTargetScenarioId(null);
+    }
+  }, [monitoringTargetScenarioId]); // Add dependency
 
   // --- Scenario Load Trigger (Editor) ---
   const handleLoadScenarioTrigger = useCallback((id: string | null) => {
     console.log(`App: Requesting editor to load scenario ID: ${id ?? 'new'}`);
     setEditorScenarioId(id);
     setActiveView('scenarios');
-    setSelectedScenarioId(null); // Clear dashboard context when editing
+    setMonitoringTargetScenarioId(null); // Clear monitoring target when editing
   }, []);
 
   // --- Callback for Editor Save/Delete ---
   const handleScenarioEditorAction = useCallback(() => {
       console.log("App: Notified by editor of save/delete action.");
       refreshSavedListForSidebar();
-      // Potentially update runningScenarios if a running one was deleted/renamed
-      // For simplicity now, just refresh saved list.
+      // If a scenario being monitored was deleted, we might need to clear monitoringTargetScenarioId
+      // This requires more complex logic checking if the ID still exists in the store.
+      // For now, just refresh the list.
   }, [refreshSavedListForSidebar]);
+
+  // --- NEW: Handler to navigate to Monitoring View ---
+  const handleNavigateToMonitor = useCallback((id: string) => {
+      console.log(`App: Navigating to monitor scenario ${id}`);
+      setMonitoringTargetScenarioId(id);
+      setActiveView('monitoring');
+  }, []);
+
+  // --- NEW: Handler for main nav clicks ---
+  const handleMainNavClick = useCallback((view: ViewName) => {
+      setActiveView(view);
+      if (view === 'scenarios') {
+          handleLoadScenarioTrigger(null); // Load new scenario editor
+      }
+      // Clear monitoring target unless navigating TO monitoring
+      if (view !== 'monitoring') {
+          setMonitoringTargetScenarioId(null);
+      }
+      // If navigating TO monitoring without a specific target yet,
+      // the MonitoringView component will handle default selection.
+  }, [handleLoadScenarioTrigger]); // Add dependency
 
 
   const renderView = () => {
     switch (activeView) {
       case 'dashboard':
-        // Dashboard uses selectedScenarioId managed by App
-        return <DashboardView selectedScenarioId={selectedScenarioId} scenario={selectedScenarioForDashboard} />;
+        // DashboardView is now always global, pass navigation handler
+        return <DashboardView
+                    runningScenarios={runningScenarios}
+                    onMonitorScenario={handleNavigateToMonitor}
+                />;
       case 'scenarios':
         return (
           <ScenarioEditorView
@@ -115,30 +147,41 @@ function App() {
           />
         );
       case 'monitoring':
-        // Monitoring view now receives the list of running scenarios
-        // It will manage its own internal selection state.
-        return <MonitoringView runningScenarios={runningScenarios} />;
+        // Pass the specific scenario ID to monitor
+        return (
+            <MonitoringView
+                scenarioIdToMonitor={monitoringTargetScenarioId}
+                allRunningScenarios={runningScenarios} // Pass the full list for dropdown
+                onPauseScenario={handlePauseScenario}
+                onResumeScenario={handleResumeScenario}
+                onStopScenario={handleStopScenario}
+            />
+        );
       case 'system':
         return <SystemManagementView />;
       case 'settings':
         return <SettingsView />;
       default:
-        return <DashboardView selectedScenarioId={selectedScenarioId} scenario={selectedScenarioForDashboard} />;
+        // Default back to global dashboard
+        return <DashboardView
+                    runningScenarios={runningScenarios}
+                    onMonitorScenario={handleNavigateToMonitor}
+                />;
     }
   };
 
   return (
     <div className="flex flex-col h-screen text-albor-light-gray font-sans overflow-hidden">
-      {/* Header is now simpler */}
       <Header />
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar manages view changes and editor loading */}
+        {/* Pass the new main nav click handler and monitor navigation handler */}
         <Sidebar
           activeView={activeView}
-          setActiveView={setActiveView}
+          setActiveView={handleMainNavClick} // Use the new handler
           runningScenarios={runningScenarios}
-          selectedScenarioIdForContext={selectedScenarioId} // Pass dashboard context for potential highlighting
-          setSelectedScenarioIdForContext={setSelectedScenarioId} // Allow sidebar click to set dashboard context
+          // selectedScenarioIdForContext={selectedScenarioId} // Removed
+          // setSelectedScenarioIdForContext={setSelectedScenarioId} // Removed
+          onNavigateToMonitor={handleNavigateToMonitor} // Pass monitor navigation handler
           savedScenarios={savedScenarioListForSidebar}
           onLoadScenario={handleLoadScenarioTrigger}
         />

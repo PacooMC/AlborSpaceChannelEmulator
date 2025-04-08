@@ -10,12 +10,13 @@ import {
 import {
     Play, Pause, Settings, Maximize, Minimize, Table, Activity, AlertTriangle,
     ChevronDown, Check, ChevronsUpDown, AreaChart as AreaChartIcon, LineChart as LineChartIcon,
-    List, Info, AlertCircle, WifiOff, X as CloseIcon
+    List, Info, AlertCircle, WifiOff, X as CloseIcon,
+    Square, Map, Server // Added Map and Server icons
 } from 'lucide-react';
-import type { Scenario } from '../../content/scenarios';
+import type { Scenario, ScenarioStatus } from '../../content/scenarios';
+import { getSystemSummary, SystemSummaryStats } from '../../content/systemSummary'; // Import summary data fetcher
 
-// --- Child Components ---
-
+// --- Child Components (ChartTile, SignalChart, etc. remain the same) ---
 // Chart Tile Wrapper
 interface ChartTileProps {
   chartId: string;
@@ -27,13 +28,11 @@ interface ChartTileProps {
 }
 const ChartTile: React.FC<ChartTileProps> = ({ chartId, title, icon: Icon, children, className = '', onMaximizeClick }) => {
     return (
-      // Ensure the tile itself is a flex column and takes full height of its grid cell
       <div className={`
         bg-albor-bg-dark/80 backdrop-blur-sm rounded border border-albor-bg-dark/50
         flex flex-col overflow-hidden relative p-2 chart-tile-bg h-full
         ${className}
       `}>
-        {/* Header */}
         <div className="flex justify-between items-center mb-1 flex-shrink-0 px-1">
           <div className="flex items-center space-x-1.5">
              {Icon && <Icon size={12} className="text-albor-dark-gray" />}
@@ -47,9 +46,7 @@ const ChartTile: React.FC<ChartTileProps> = ({ chartId, title, icon: Icon, child
             <Maximize size={12} />
           </button>
         </div>
-        {/* Content Area: flex-1 and min-h-0 are key for flexbox height calculation */}
         <div className="flex-1 min-h-0 w-full relative">
-          {/* Position absolute ensures children fill this div */}
           <div className="absolute inset-0">
              {children}
           </div>
@@ -57,19 +54,9 @@ const ChartTile: React.FC<ChartTileProps> = ({ chartId, title, icon: Icon, child
       </div>
     );
 };
-
-
 // Signal Chart Component
-interface SignalChartProps {
-  data: SignalMetrics[];
-  metric: keyof SignalMetrics;
-  name: string;
-  color: string;
-  unit: string;
-}
-const SignalChart: React.FC<SignalChartProps> = ({ data, metric, name, color, unit }) => {
-  return (
-    // Explicit width and height for ResponsiveContainer
+interface SignalChartProps { data: SignalMetrics[]; metric: keyof SignalMetrics; name: string; color: string; unit: string; }
+const SignalChart: React.FC<SignalChartProps> = ({ data, metric, name, color, unit }) => (
     <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 15, left: -25, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-albor-dark-gray)" strokeOpacity={0.3} />
@@ -79,16 +66,10 @@ const SignalChart: React.FC<SignalChartProps> = ({ data, metric, name, color, un
             <Line type="monotone" dataKey={metric} name={name} stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
         </LineChart>
     </ResponsiveContainer>
-  );
-};
-
+);
 // Spectrum Chart Component
-interface SpectrumChartProps {
-  data: SpectrumDataPoint[];
-}
-const SpectrumChart: React.FC<SpectrumChartProps> = ({ data }) => {
-  return (
-    // Explicit width and height for ResponsiveContainer
+interface SpectrumChartProps { data: SpectrumDataPoint[]; }
+const SpectrumChart: React.FC<SpectrumChartProps> = ({ data }) => (
     <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 5, right: 15, left: -25, bottom: 5 }}>
             <defs> <linearGradient id="spectrumGradient" x1="0" y1="0" x2="0" y2="1"> <stop offset="5%" stopColor="var(--color-albor-orange)" stopOpacity={0.6}/> <stop offset="95%" stopColor="var(--color-albor-orange)" stopOpacity={0.1}/> </linearGradient> </defs>
@@ -99,9 +80,7 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({ data }) => {
             <Area type="monotone" dataKey="power" stroke="var(--color-albor-orange)" fillOpacity={1} fill="url(#spectrumGradient)" strokeWidth={1.5} isAnimationActive={false} />
         </AreaChart>
     </ResponsiveContainer>
-  );
-};
-
+);
 // Metrics Summary Table Component
 interface MetricsSummaryTableProps { data: SignalMetrics[]; }
 const MetricsSummaryTable: React.FC<MetricsSummaryTableProps> = ({ data }) => {
@@ -110,7 +89,6 @@ const MetricsSummaryTable: React.FC<MetricsSummaryTableProps> = ({ data }) => {
   const metricsToDisplay: { key: keyof SignalMetrics; name: string }[] = [ { key: 'snr', name: 'SNR' }, { key: 'delay', name: 'Delay' }, { key: 'receivedPower', name: 'Rx Power' }, { key: 'doppler', name: 'Doppler' }, ];
   return ( <div className="h-full w-full overflow-auto p-1 custom-scrollbar"> <table className="w-full text-left text-xs"> <thead> <tr className="text-albor-dark-gray border-b border-albor-bg-dark"> <th className="py-1 px-2">Metric</th> <th className="py-1 px-2 text-right">Current</th> <th className="py-1 px-2 text-right">Min</th> <th className="py-1 px-2 text-right">Max</th> </tr> </thead> <tbody className="divide-y divide-albor-bg-dark/50"> {metricsToDisplay.map(({ key, name }) => ( <tr key={key} className="hover:bg-albor-bg-dark/30"> <td className="py-1.5 px-2 font-medium text-albor-light-gray">{name}</td> <td className="py-1.5 px-2 text-right font-mono">{formatValue(key, summary.current?.[key])}</td> <td className="py-1.5 px-2 text-right font-mono text-albor-dark-gray">{formatValue(key, summary.min[key])}</td> <td className="py-1.5 px-2 text-right font-mono text-albor-dark-gray">{formatValue(key, summary.max[key])}</td> </tr> ))} </tbody> </table> </div> );
 };
-
 // Event Log Panel Component
 interface EventLogPanelProps { logs: LogEntry[]; }
 const EventLogPanel: React.FC<EventLogPanelProps> = ({ logs }) => {
@@ -127,7 +105,6 @@ const EventLogPanel: React.FC<EventLogPanelProps> = ({ logs }) => {
         </div>
     );
 };
-
 // Modal Component for Maximized Chart
 interface MaximizeModalProps { chartId: string; title: string; icon?: React.ElementType; children: React.ReactNode; onClose: () => void; }
 const MaximizeModal: React.FC<MaximizeModalProps> = ({ chartId, title, icon: Icon, children, onClose }) => (
@@ -137,13 +114,16 @@ const MaximizeModal: React.FC<MaximizeModalProps> = ({ chartId, title, icon: Ico
           <button onClick={onClose} className="p-1.5 rounded-full text-albor-dark-gray hover:text-albor-light-gray hover:bg-albor-bg-dark/50 transition-colors" title="Close" > <CloseIcon size={18} /> </button>
         </div>
         <div className="flex-1 w-full h-full overflow-hidden min-h-0">
-            {/* Position absolute ensures children fill this div */}
-            <div className="absolute inset-0">
-                {children}
-            </div>
+            <div className="absolute inset-0"> {children} </div>
         </div>
     </div>
 );
+
+// --- NEW: Import scenario-specific components ---
+import SystemSummaryTile from '../dashboard/SystemSummaryTile';
+import OrbitMapTile from '../dashboard/OrbitMapTile';
+import PortAssignmentMap from '../dashboard/PortAssignmentTile';
+// --- End Import ---
 
 
 // --- Main View Component ---
@@ -151,11 +131,23 @@ const MaximizeModal: React.FC<MaximizeModalProps> = ({ chartId, title, icon: Ico
 const MAX_HISTORY = 100;
 const MAX_LOGS = 100;
 
-interface MonitoringViewProps { runningScenarios: Scenario[]; }
+interface MonitoringViewProps {
+    scenarioIdToMonitor: string | null; // ID of the scenario to monitor
+    allRunningScenarios: Scenario[]; // Full list for dropdown
+    onPauseScenario?: (id: string) => void;
+    onResumeScenario?: (id: string) => void;
+    onStopScenario?: (id: string) => void;
+}
 
-const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => {
-  const [selectedMonitorScenarioId, setSelectedMonitorScenarioId] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(true);
+const MonitoringView: React.FC<MonitoringViewProps> = ({
+    scenarioIdToMonitor,
+    allRunningScenarios,
+    onPauseScenario,
+    onResumeScenario,
+    onStopScenario
+}) => {
+  // Use scenarioIdToMonitor prop directly, App manages the target
+  const [selectedMonitorScenarioId, setSelectedMonitorScenarioId] = useState<string | null>(scenarioIdToMonitor);
   const [signalHistory, setSignalHistory] = useState<SignalMetrics[]>([]);
   const [spectrumData, setSpectrumData] = useState<SpectrumDataPoint[]>([]);
   const [eventLogs, setEventLogs] = useState<LogEntry[]>([]);
@@ -163,38 +155,52 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Effect for default selection and data loading
+  // Update local state if the prop changes (e.g., user navigates via sidebar)
   useEffect(() => {
-    let currentSelection = selectedMonitorScenarioId;
-    if (!currentSelection || !runningScenarios.some(s => s.id === currentSelection)) {
-      currentSelection = runningScenarios.length > 0 ? runningScenarios[0].id : null;
-    }
-    if (currentSelection !== selectedMonitorScenarioId) {
-      setSelectedMonitorScenarioId(currentSelection);
-    }
-    if (currentSelection) {
-      setSignalHistory(generateInitialSignalHistory(currentSelection, MAX_HISTORY));
-      setSpectrumData(generateSpectrumData(currentSelection));
-      setEventLogs(generateInitialLogs(currentSelection, MAX_LOGS));
+    setSelectedMonitorScenarioId(scenarioIdToMonitor);
+  }, [scenarioIdToMonitor]);
+
+  // Find the currently selected scenario object
+  const selectedScenario = useMemo(() => {
+    return allRunningScenarios.find(s => s.id === selectedMonitorScenarioId);
+  }, [selectedMonitorScenarioId, allRunningScenarios]);
+
+  // Determine if the selected scenario is currently running or paused
+  const isSelectedScenarioRunning = selectedScenario?.status === 'running';
+
+  // Effect for data loading when selected ID changes
+  useEffect(() => {
+    if (selectedMonitorScenarioId) {
+      console.log(`MonitoringView: Loading data for ${selectedMonitorScenarioId}`);
+      setSignalHistory(generateInitialSignalHistory(selectedMonitorScenarioId, MAX_HISTORY));
+      setSpectrumData(generateSpectrumData(selectedMonitorScenarioId));
+      setEventLogs(generateInitialLogs(selectedMonitorScenarioId, MAX_LOGS));
     } else {
-      setSignalHistory([]); setSpectrumData([]); setEventLogs([]);
+      // Clear data if no scenario is selected
+      console.log("MonitoringView: No scenario selected, clearing data.");
+      setSignalHistory([]);
+      setSpectrumData([]);
+      setEventLogs([]);
     }
-  }, [runningScenarios, selectedMonitorScenarioId]);
+  }, [selectedMonitorScenarioId]); // Rerun only when selected ID changes
 
 
-  // Effect for periodic updates
+  // Effect for periodic updates (only when the selected scenario is 'running')
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
-    if (isRunning && selectedMonitorScenarioId) {
+    if (isSelectedScenarioRunning && selectedMonitorScenarioId) {
+      console.log(`MonitoringView: Starting updates for ${selectedMonitorScenarioId}`);
       intervalId = setInterval(() => {
         setSignalHistory(prev => [...prev, generateSignalMetrics(selectedMonitorScenarioId, prev[prev.length - 1])].slice(-MAX_HISTORY));
         setSpectrumData(generateSpectrumData(selectedMonitorScenarioId));
         const newLog = generateLogEntry(selectedMonitorScenarioId);
         if (newLog) setEventLogs(prevLogs => [...prevLogs, newLog].slice(-MAX_LOGS));
       }, 1000);
+    } else {
+        console.log(`MonitoringView: Stopping updates for ${selectedMonitorScenarioId} (Status: ${selectedScenario?.status})`);
     }
-    return () => { if (intervalId) clearInterval(intervalId); };
-  }, [isRunning, selectedMonitorScenarioId]);
+    return () => { if (intervalId) { console.log(`MonitoringView: Clearing update interval for ${selectedMonitorScenarioId}`); clearInterval(intervalId); } };
+  }, [isSelectedScenarioRunning, selectedMonitorScenarioId]);
 
   // Effect for closing dropdown
   useEffect(() => {
@@ -208,6 +214,19 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
   const handleCloseMaximize = () => setMaximizedChartId(null);
   const handleScenarioSelect = (id: string | null) => { if (id !== selectedMonitorScenarioId) setSelectedMonitorScenarioId(id); setIsDropdownOpen(false); };
 
+  // Control Button Handlers
+  const handlePauseResumeClick = () => {
+    if (!selectedMonitorScenarioId) return;
+    if (isSelectedScenarioRunning) { onPauseScenario?.(selectedMonitorScenarioId); }
+    else { onResumeScenario?.(selectedMonitorScenarioId); }
+  };
+  const handleStopClick = () => {
+    if (!selectedMonitorScenarioId) return;
+    if (window.confirm(`Are you sure you want to stop scenario "${selectedScenario?.name}"?`)) {
+        onStopScenario?.(selectedMonitorScenarioId);
+    }
+  };
+
   const chartConfigs = useMemo(() => [
     { id: 'snr', metric: 'snr' as keyof SignalMetrics, name: 'SNR', color: '#34D399', unit: 'dB', icon: LineChartIcon },
     { id: 'delay', metric: 'delay' as keyof SignalMetrics, name: 'Delay', color: '#60A5FA', unit: 'ms', icon: LineChartIcon },
@@ -215,16 +234,21 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
     { id: 'doppler', metric: 'doppler' as keyof SignalMetrics, name: 'Doppler', color: '#FACC15', unit: 'Hz', icon: LineChartIcon },
   ], []);
 
-  const currentSelectionName = selectedMonitorScenarioId ? runningScenarios.find(s => s.id === selectedMonitorScenarioId)?.name ?? 'Select...' : 'Select...';
+  const currentSelectionName = selectedScenario?.name ?? 'Select Scenario...';
 
   const maximizedChartConfig = useMemo(() => {
       if (!maximizedChartId) return null;
       if (maximizedChartId === 'spectrum') return { id: 'spectrum', title: 'Spectrum Analysis', icon: AreaChartIcon };
       if (maximizedChartId === 'summary') return { id: 'summary', title: 'Metrics Summary', icon: Table };
       if (maximizedChartId === 'eventlog') return { id: 'eventlog', title: 'Event Log', icon: List };
+      // *** ADDED: Scenario Details, Map, Ports for Maximized View ***
+      if (maximizedChartId === 'scenario-details') return { id: 'scenario-details', title: 'Scenario Details', icon: Settings };
+      if (maximizedChartId === 'orbit-map') return { id: 'orbit-map', title: 'Orbit Map', icon: Map };
+      if (maximizedChartId === 'port-map') return { id: 'port-map', title: 'Port Assignment Map', icon: Server };
+      // --- End Added ---
       const signalConfig = chartConfigs.find(c => c.id === maximizedChartId);
       if (signalConfig) {
-          return { ...signalConfig, title: `${signalConfig.name} vs Time` };
+          return { id: signalConfig.id, title: `${signalConfig.name} vs Time`, icon: signalConfig.icon, metric: signalConfig.metric, name: signalConfig.name, color: signalConfig.color, unit: signalConfig.unit };
       }
       return null;
   }, [maximizedChartId, chartConfigs]);
@@ -235,102 +259,155 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
     <div className="text-white flex flex-col h-full">
       {/* Header/Controls */}
       <div className="flex justify-between items-center mb-4 pb-2 border-b border-albor-bg-dark/50 flex-shrink-0 gap-4 px-1">
-        <h1 className="text-xl font-semibold text-albor-light-gray flex-shrink-0">Monitoring</h1>
+        {/* Updated Title */}
+        <h1 className="text-xl font-semibold text-albor-light-gray flex-shrink-0">
+            Scenario Monitoring {selectedScenario ? `: ${selectedScenario.name}` : ''}
+        </h1>
         <div className="flex items-center gap-4 flex-shrink-0">
             {/* Scenario Selector Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <label htmlFor="monitor-scenario-select" className="text-xs text-albor-dark-gray absolute -top-3.5 left-0">Scenario</label>
-              <button id="monitor-scenario-select" onClick={() => setIsDropdownOpen(!isDropdownOpen)} disabled={runningScenarios.length === 0}
+              <button id="monitor-scenario-select" onClick={() => setIsDropdownOpen(!isDropdownOpen)} disabled={allRunningScenarios.length === 0}
                 className="flex items-center justify-between px-3 py-1.5 min-w-[220px] max-w-xs bg-albor-bg-dark/60 border border-albor-dark-gray/70 rounded text-sm text-albor-light-gray hover:border-albor-light-gray/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 title="Select Scenario to Monitor" >
                 <span className="truncate mr-2">{currentSelectionName}</span>
                 <ChevronsUpDown size={16} className="text-albor-dark-gray flex-shrink-0" />
               </button>
-              {isDropdownOpen && runningScenarios.length > 0 && (
+              {isDropdownOpen && allRunningScenarios.length > 0 && (
                 <div className="absolute top-full right-0 mt-1 w-60 bg-albor-bg-dark border border-albor-dark-gray rounded shadow-lg py-1 z-50">
-                  {runningScenarios.map(scenario => ( <button key={scenario.id} onClick={() => handleScenarioSelect(scenario.id)} className={`flex items-center justify-between w-full px-3 py-1.5 text-left text-xs transition-colors ${ selectedMonitorScenarioId === scenario.id ? 'bg-albor-orange/20 text-albor-orange' : 'text-albor-light-gray hover:bg-albor-bg-dark/70' }`} > <span className="truncate">{scenario.name}</span> {selectedMonitorScenarioId === scenario.id && <Check size={14} />} </button> ))}
+                  {allRunningScenarios.map(scenario => ( <button key={scenario.id} onClick={() => handleScenarioSelect(scenario.id)} className={`flex items-center justify-between w-full px-3 py-1.5 text-left text-xs transition-colors ${ selectedMonitorScenarioId === scenario.id ? 'bg-albor-orange/20 text-albor-orange' : 'text-albor-light-gray hover:bg-albor-bg-dark/70' }`} > <span className="truncate">{scenario.name}</span> {selectedMonitorScenarioId === scenario.id && <Check size={14} />} </button> ))}
                 </div>
               )}
             </div>
-            {/* Play/Pause Button */}
-            <button onClick={() => setIsRunning(!isRunning)} disabled={!selectedMonitorScenarioId}
-              className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${ isRunning ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : 'bg-green-500 hover:bg-green-600 text-white' }`} >
-              {isRunning ? <Pause size={14} /> : <Play size={14} />}
-              <span>{isRunning ? 'Pause Monitoring' : 'Resume Monitoring'}</span>
-            </button>
+            {/* Simulation Control Buttons */}
+            <div className="flex items-center space-x-2">
+                <button onClick={handlePauseResumeClick} disabled={!selectedMonitorScenarioId || selectedScenario?.status === 'stopped'}
+                  className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${ isSelectedScenarioRunning ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : 'bg-green-500 hover:bg-green-600 text-white' }`}
+                  title={isSelectedScenarioRunning ? 'Pause Simulation' : 'Resume Simulation'} >
+                  {isSelectedScenarioRunning ? <Pause size={14} /> : <Play size={14} />}
+                  <span>{isSelectedScenarioRunning ? 'Pause' : 'Resume'}</span>
+                </button>
+                 <button onClick={handleStopClick} disabled={!selectedMonitorScenarioId || selectedScenario?.status === 'stopped'}
+                  className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 bg-red-600 hover:bg-red-700 text-white`}
+                  title="Stop Simulation" >
+                  <Square size={14} />
+                  <span>Stop</span>
+                </button>
+            </div>
         </div>
       </div>
 
       {/* Conditional Rendering for No Scenario Selected */}
       {!selectedMonitorScenarioId ? (
-         <div className="flex-1 flex flex-col items-center justify-center"> <div className="text-center p-6 bg-albor-bg-dark/50 rounded-lg border border-albor-dark-gray"> <Activity size={48} className="mx-auto text-albor-orange mb-4" /> <h2 className="text-lg font-semibold text-albor-light-gray mb-2">No Active Scenario Selected</h2> <p className="text-sm text-albor-dark-gray"> {runningScenarios.length > 0 ? "Select an active scenario from the dropdown above." : "There are no active scenarios to monitor."} </p> </div> </div>
+         <div className="flex-1 flex flex-col items-center justify-center"> <div className="text-center p-6 bg-albor-bg-dark/50 rounded-lg border border-albor-dark-gray"> <Activity size={48} className="mx-auto text-albor-orange mb-4" /> <h2 className="text-lg font-semibold text-albor-light-gray mb-2">No Scenario Selected</h2> <p className="text-sm text-albor-dark-gray"> {allRunningScenarios.length > 0 ? "Select an active scenario from the dropdown above to monitor." : "There are no active scenarios to monitor."} </p> </div> </div>
         ) : (
-          /* Main Grid Area - This scrolls */
-          <div className={`flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto p-1 custom-scrollbar min-h-0`}>
+          /* Main Grid Area - Adjusted Layout */
+          <div className={`flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto p-1 custom-scrollbar min-h-0`}>
 
-            {/* Spectrum Chart */}
-            {/* Ensure the grid item itself has a minimum height */}
-            <div className={`lg:col-span-2 min-h-[200px]`}>
-              <ChartTile
-                key={`spectrum-${selectedMonitorScenarioId}`}
-                chartId="spectrum"
-                title="Spectrum Analysis"
-                icon={AreaChartIcon}
-                onMaximizeClick={() => handleToggleMaximize('spectrum')}
-                // className="min-h-[200px]" // Moved min-height to parent div
-              >
-                <SpectrumChart data={spectrumData} />
-              </ChartTile>
+            {/* Column 1: Scenario Details & Map */}
+            <div className="lg:col-span-1 flex flex-col gap-4">
+                <div className="min-h-[250px]"> {/* Ensure min height */}
+                    <ChartTile
+                        key={`scenario-details-${selectedMonitorScenarioId}`}
+                        chartId="scenario-details"
+                        title="Scenario Details"
+                        icon={Settings}
+                        onMaximizeClick={() => handleToggleMaximize('scenario-details')}
+                    >
+                        {/* Use SystemSummaryTile in 'scenario' mode */}
+                        <SystemSummaryTile
+                            viewMode="scenario"
+                            scenarioId={selectedMonitorScenarioId}
+                            scenario={selectedScenario} // Pass the scenario object
+                        />
+                    </ChartTile>
+                </div>
+                <div className="flex-1 min-h-[250px]"> {/* Ensure min height and flex grow */}
+                    <ChartTile
+                        key={`orbit-map-${selectedMonitorScenarioId}`}
+                        chartId="orbit-map"
+                        title="Orbit Map"
+                        icon={Map}
+                        onMaximizeClick={() => handleToggleMaximize('orbit-map')}
+                    >
+                        {/* Pass scenarioId to filter */}
+                        <OrbitMapTile scenarioId={selectedMonitorScenarioId} />
+                    </ChartTile>
+                </div>
             </div>
 
-            {/* Event Log */}
-            {/* Ensure the grid item itself has a minimum height */}
-            <div className={`lg:row-span-2 min-h-[300px]`}>
-              <ChartTile
-                key={`eventlog-${selectedMonitorScenarioId}`}
-                chartId="eventlog"
-                title="Event Log"
-                icon={List}
-                onMaximizeClick={() => handleToggleMaximize('eventlog')}
-                // className="min-h-[300px]" // Moved min-height to parent div
-              >
-                <EventLogPanel logs={eventLogs} />
-              </ChartTile>
+            {/* Column 2 & 3: Signal Charts & Spectrum */}
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Spectrum Chart */}
+                <div className={`md:col-span-2 min-h-[200px]`}>
+                  <ChartTile
+                    key={`spectrum-${selectedMonitorScenarioId}`}
+                    chartId="spectrum"
+                    title="Spectrum Analysis"
+                    icon={AreaChartIcon}
+                    onMaximizeClick={() => handleToggleMaximize('spectrum')}
+                  >
+                    <SpectrumChart data={spectrumData} />
+                  </ChartTile>
+                </div>
+                {/* Signal Metrics Charts */}
+                {chartConfigs.map(config => (
+                  <div key={`${config.id}-${selectedMonitorScenarioId}`} className="min-h-[180px]">
+                    <ChartTile
+                      chartId={config.id}
+                      title={config.name}
+                      icon={config.icon}
+                      onMaximizeClick={() => handleToggleMaximize(config.id)}
+                    >
+                      <SignalChart
+                        data={signalHistory}
+                        metric={config.metric}
+                        name={config.name}
+                        color={config.color}
+                        unit={config.unit}
+                      />
+                    </ChartTile>
+                  </div>
+                ))}
+                 {/* Metrics Summary Table */}
+                <div className="min-h-[180px]">
+                  <ChartTile
+                    key={`summary-${selectedMonitorScenarioId}`}
+                    chartId="summary"
+                    title="Metrics Summary"
+                    icon={Table}
+                    onMaximizeClick={() => handleToggleMaximize('summary')}
+                  >
+                    <MetricsSummaryTable data={signalHistory} />
+                  </ChartTile>
+                </div>
             </div>
 
-            {/* Signal Metrics Charts */}
-            {chartConfigs.map(config => (
-              // Ensure the grid item itself has a minimum height
-              <div key={`${config.id}-${selectedMonitorScenarioId}`} className="min-h-[180px]">
-                <ChartTile
-                  chartId={config.id}
-                  title={config.name}
-                  icon={config.icon}
-                  onMaximizeClick={() => handleToggleMaximize(config.id)}
-                >
-                  <SignalChart
-                    data={signalHistory}
-                    metric={config.metric}
-                    name={config.name}
-                    color={config.color}
-                    unit={config.unit}
-                  />
-                </ChartTile>
-              </div>
-            ))}
-
-            {/* Metrics Summary Table */}
-            {/* Ensure the grid item itself has a minimum height */}
-            <div className="min-h-[180px]">
-              <ChartTile
-                key={`summary-${selectedMonitorScenarioId}`}
-                chartId="summary"
-                title="Metrics Summary"
-                icon={Table}
-                onMaximizeClick={() => handleToggleMaximize('summary')}
-              >
-                <MetricsSummaryTable data={signalHistory} />
-              </ChartTile>
+            {/* Column 4: Ports & Logs */}
+            <div className="lg:col-span-1 flex flex-col gap-4">
+                <div className="min-h-[250px]"> {/* Ensure min height */}
+                    <ChartTile
+                        key={`port-map-${selectedMonitorScenarioId}`}
+                        chartId="port-map"
+                        title="Port Assignment Map"
+                        icon={Server}
+                        onMaximizeClick={() => handleToggleMaximize('port-map')}
+                    >
+                         {/* Pass scenarioId to filter */}
+                        <PortAssignmentMap scenarioId={selectedMonitorScenarioId} />
+                    </ChartTile>
+                </div>
+                <div className="flex-1 min-h-[250px]"> {/* Ensure min height and flex grow */}
+                    <ChartTile
+                        key={`eventlog-${selectedMonitorScenarioId}`}
+                        chartId="eventlog"
+                        title="Event Log"
+                        icon={List}
+                        onMaximizeClick={() => handleToggleMaximize('eventlog')}
+                    >
+                        <EventLogPanel logs={eventLogs} />
+                    </ChartTile>
+                </div>
             </div>
 
           </div>
@@ -348,7 +425,12 @@ const MonitoringView: React.FC<MonitoringViewProps> = ({ runningScenarios }) => 
           {maximizedChartId === 'spectrum' && <SpectrumChart data={spectrumData} />}
           {maximizedChartId === 'summary' && <MetricsSummaryTable data={signalHistory} />}
           {maximizedChartId === 'eventlog' && <EventLogPanel logs={eventLogs} />}
-          {chartConfigs.find(c => c.id === maximizedChartId) && (
+          {/* *** ADDED: Render scenario-specific components in modal *** */}
+          {maximizedChartId === 'scenario-details' && <SystemSummaryTile viewMode="scenario" scenarioId={selectedMonitorScenarioId} scenario={selectedScenario} />}
+          {maximizedChartId === 'orbit-map' && <OrbitMapTile scenarioId={selectedMonitorScenarioId} isMaximized={true} />}
+          {maximizedChartId === 'port-map' && <PortAssignmentMap scenarioId={selectedMonitorScenarioId} />}
+          {/* --- End Added --- */}
+          {chartConfigs.find(c => c.id === maximizedChartId) && maximizedChartConfig.metric && (
             <SignalChart
               data={signalHistory}
               metric={maximizedChartConfig.metric as keyof SignalMetrics}

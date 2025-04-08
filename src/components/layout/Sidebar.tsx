@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, ListChecks, BarChart2, Settings, HardDrive, PlayCircle, PauseCircle, StopCircle, Activity } from 'lucide-react';
+// Import Scenario type which now includes status
 import type { Scenario } from '../../content/scenarios';
 import SavedScenariosPanel from './SavedScenariosPanel';
 import { SavedScenarioInfo } from '../../content/scenarioStore';
@@ -8,11 +9,11 @@ type ViewName = 'dashboard' | 'scenarios' | 'monitoring' | 'system' | 'settings'
 
 type SidebarProps = {
   activeView: ViewName;
-  setActiveView: (viewName: ViewName) => void;
-  runningScenarios: Scenario[];
-  // Renamed props for clarity: This is for Dashboard context
-  selectedScenarioIdForContext: string | null;
-  setSelectedScenarioIdForContext: (id: string | null) => void;
+  setActiveView: (viewName: ViewName) => void; // Renamed back for clarity, App handles logic
+  runningScenarios: Scenario[]; // This now includes status
+  // selectedScenarioIdForContext: string | null; // Removed
+  // setSelectedScenarioIdForContext: (id: string | null) => void; // Removed
+  onNavigateToMonitor: (id: string) => void; // *** NEW: Handler to navigate to monitor view ***
   savedScenarios: SavedScenarioInfo[];
   onLoadScenario: (id: string | null) => void; // Function to trigger loading in App/Editor
 };
@@ -25,48 +26,28 @@ const mainNavItems = [
   { name: 'Settings', icon: Settings, view: 'settings' as const },
 ];
 
-const getStatusIcon = (status: Scenario['status']) => {
+// Helper to get status icon and tooltip based on ScenarioStatus
+const getStatusInfo = (status: Scenario['status']): { icon: React.ElementType; color: string; title: string } => {
   switch (status) {
-    case 'running': return <PlayCircle size={14} className="text-green-500 flex-shrink-0" />;
-    case 'paused': return <PauseCircle size={14} className="text-yellow-500 flex-shrink-0" />;
-    case 'stopped': return <StopCircle size={14} className="text-red-500 flex-shrink-0" />;
-    default: return null;
+    case 'running': return { icon: PlayCircle, color: 'text-green-500', title: 'Running' };
+    case 'paused': return { icon: PauseCircle, color: 'text-yellow-500', title: 'Paused' };
+    case 'stopped': return { icon: StopCircle, color: 'text-red-500', title: 'Stopped' };
+    default: return { icon: StopCircle, color: 'text-gray-500', title: 'Unknown' }; // Fallback
   }
 };
 
 const Sidebar: React.FC<SidebarProps> = ({
   activeView,
-  setActiveView,
+  setActiveView, // Use the handler passed from App
   runningScenarios,
-  selectedScenarioIdForContext, // Use renamed prop
-  setSelectedScenarioIdForContext, // Use renamed prop
+  onNavigateToMonitor, // Use the monitor navigation handler
   savedScenarios,
   onLoadScenario,
 }) => {
 
-  // Handle selecting a running scenario to view its Dashboard data
-  const handleScenarioContextSelect = (scenarioId: string) => {
-    setSelectedScenarioIdForContext(scenarioId); // Set the context for the Dashboard
-    setActiveView('dashboard'); // Switch to dashboard view when a scenario is clicked
-  };
-
-  // Handle clicking a main navigation item
-  const handleMainNavClick = (view: ViewName) => {
-      setActiveView(view);
-      // If navigating TO scenarios, trigger load of null (new scenario)
-      if (view === 'scenarios') {
-          onLoadScenario(null);
-      }
-      // Clear dashboard context if navigating away from dashboard
-      if (view !== 'dashboard') {
-          setSelectedScenarioIdForContext(null);
-      }
-  };
-
-
   // Handler to load scenario from Saved Panel (triggers editor load)
   const handleLoadFromSavedPanel = (id: string | null) => {
-      onLoadScenario(id); // Call the prop function passed from App
+      onLoadScenario(id);
   };
 
 
@@ -77,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {mainNavItems.map((item) => (
           <button
             key={item.name}
-            onClick={() => handleMainNavClick(item.view)}
+            onClick={() => setActiveView(item.view)} // Call the handler from App
             className={`flex items-center w-full p-2 rounded cursor-pointer group transition-colors duration-150 ease-in-out
               ${ activeView === item.view
                 ? 'bg-albor-orange/20 text-albor-orange shadow-inner'
@@ -99,39 +80,41 @@ const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </nav>
 
-      {/* Running Scenarios Section - Now primarily for Dashboard context selection */}
+      {/* Running/Active Scenarios Section */}
       <div className="space-y-1 mb-4 flex-shrink-0">
          <h3 className="text-xs font-semibold text-albor-dark-gray uppercase tracking-wider mb-2 px-1">Active Scenarios</h3>
-         {runningScenarios.length > 0 ? (
-            runningScenarios.map((scenario) => (
-              <button
-                key={scenario.id}
-                onClick={() => handleScenarioContextSelect(scenario.id)} // Use context select handler
-                className={`flex items-center justify-between w-full p-2 rounded cursor-pointer group transition-colors duration-150 ease-in-out text-left
-                  ${ selectedScenarioIdForContext === scenario.id && activeView === 'dashboard' // Highlight only if selected for dashboard
-                    ? 'bg-albor-bg-dark/70 ring-1 ring-albor-orange/50'
-                    : 'text-albor-light-gray hover:bg-albor-bg-dark/60'
-                  }`}
-                 title={`View Dashboard for ${scenario.name}`}
-              >
-                <div className="flex items-center space-x-2 overflow-hidden">
-                  {getStatusIcon(scenario.status)}
-                  <span className="text-xs truncate">{scenario.name}</span>
-                </div>
-              </button>
-            ))
+         {/* Filter out stopped scenarios from this list */}
+         {runningScenarios.filter(s => s.status !== 'stopped').length > 0 ? (
+            runningScenarios.filter(s => s.status !== 'stopped').map((scenario) => {
+              const statusInfo = getStatusInfo(scenario.status); // Get icon, color, title
+              return (
+                <button
+                  key={scenario.id}
+                  // *** CHANGE: Call onNavigateToMonitor on click ***
+                  onClick={() => onNavigateToMonitor(scenario.id)}
+                  className={`flex items-center justify-between w-full p-2 rounded cursor-pointer group transition-colors duration-150 ease-in-out text-left text-albor-light-gray hover:bg-albor-bg-dark/60`}
+                   title={`Monitor Scenario: ${scenario.name} (${statusInfo.title})`} // Updated tooltip
+                >
+                  <div className="flex items-center space-x-2 overflow-hidden">
+                    {/* Use statusInfo for icon and color */}
+                    <statusInfo.icon size={14} className={`${statusInfo.color} flex-shrink-0`} />
+                    <span className="text-xs truncate">{scenario.name}</span>
+                  </div>
+                </button>
+              );
+            })
          ) : (
-           <p className="text-xs text-albor-dark-gray px-1 italic">No active scenarios.</p>
+           <p className="text-xs text-albor-dark-gray px-1 italic">No running or paused scenarios.</p>
          )}
       </div>
 
-      {/* Saved Scenarios Panel - For loading into editor */}
+      {/* Saved Scenarios Panel */}
       <div className="flex-1 flex flex-col min-h-0">
           <SavedScenariosPanel
               savedScenarios={savedScenarios}
-              selectedScenarioIds={new Set()}
+              selectedScenarioIds={new Set()} // Selection managed in editor view now
               onLoadScenario={handleLoadFromSavedPanel}
-              onToggleSelection={() => {}}
+              onToggleSelection={() => {}} // Selection managed in editor view now
               initiallyOpen={true}
           />
       </div>
