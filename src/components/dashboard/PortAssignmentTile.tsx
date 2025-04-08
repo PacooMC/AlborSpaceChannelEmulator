@@ -1,12 +1,10 @@
 import React from 'react';
 import { Server, TerminalSquare, Satellite, RadioTower, Smartphone, Plug, Beaker, Circle, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
 // Import data and types from content files
-import { dummySdrData, Port, PortStatus, SdrDevice } from '../../content/sdr';
+import { dummySdrData, Port, PortStatus, SdrDevice, PortAssignment } from '../../content/sdr';
 import { NodeType } from '../../content/mapData'; // Import NodeType from mapData
 
-// --- Data Structures & Types are now imported ---
-
-// --- Dummy Data is now imported ---
+// Data structures, types, and dummy data are now imported from content files.
 
 // --- Helper Components & Functions ---
 const getNodeIcon = (nodeType: NodeType) => { // Use imported NodeType
@@ -109,20 +107,57 @@ const Legend: React.FC = () => {
   );
 };
 
+// --- NEW: List View Component ---
+interface PortListItemProps {
+    port: Port;
+    sdrName: string;
+}
+const PortListItem: React.FC<PortListItemProps> = ({ port, sdrName }) => {
+    const statusInfo = getStatusInfo(port.status);
+    const assignment = port.assignment;
+    return (
+        <tr className="hover:bg-albor-bg-dark/30">
+            <td className="py-1 px-2 text-albor-dark-gray">{sdrName}</td>
+            <td className="py-1 px-2 font-mono">{port.id} ({port.type})</td>
+            <td className="py-1 px-2">
+                <span className={`flex items-center space-x-1 ${statusInfo.color.split(' ')[2]}`}>
+                    <statusInfo.icon size={12} />
+                    <span>{statusInfo.label}</span>
+                </span>
+            </td>
+            <td className="py-1 px-2">
+                {assignment ? (
+                    <div className="flex items-center space-x-1">
+                        {assignment.signalType === 'physical' ? <Plug size={10} title="Physical" /> : <Beaker size={10} title="Simulated" />}
+                        {getNodeIcon(assignment.nodeType)}
+                        <span className="truncate max-w-[100px]">{assignment.nodeId}</span>
+                    </div>
+                ) : (
+                    <span className="text-albor-dark-gray">-</span>
+                )}
+            </td>
+        </tr>
+    );
+};
 
 // --- Main Component ---
 type PortAssignmentMapProps = {
   className?: string;
   scenarioId?: string | null; // Add scenarioId prop if filtering is needed later
+  displayMode?: 'map' | 'list'; // NEW: Control display mode
 };
 
-const PortAssignmentMap: React.FC<PortAssignmentMapProps> = ({ className }) => {
+const PortAssignmentMap: React.FC<PortAssignmentMapProps> = ({
+    className,
+    scenarioId, // Keep scenarioId for potential future filtering
+    displayMode = 'map' // Default to map view
+}) => {
   // Use imported data directly. Add filtering based on scenarioId if needed in the future.
   const sdrs: SdrDevice[] = dummySdrData;
 
-  return (
-    <div className={`bg-albor-bg-dark/80 backdrop-blur-sm p-4 rounded border border-albor-bg-dark/50 ${className}`}>
-      <h3 className="text-base font-semibold text-albor-light-gray mb-4">Port Assignment Map</h3>
+  // --- Render Map View ---
+  const renderMapView = () => (
+    <>
       <div className="overflow-x-auto pb-2">
         <div className="flex space-x-4">
           {sdrs.map((sdr) => (
@@ -141,6 +176,48 @@ const PortAssignmentMap: React.FC<PortAssignmentMapProps> = ({ className }) => {
         </div>
       </div>
       <Legend />
+    </>
+  );
+
+  // --- Render List View ---
+  const renderListView = () => {
+    const allPorts = sdrs.flatMap(sdr => sdr.ports.map(port => ({ ...port, sdrName: sdr.name })));
+    return (
+        <div className="overflow-auto h-full custom-scrollbar -mr-1 pr-1">
+            <table className="w-full text-left text-xs">
+                <thead>
+                    <tr className="text-albor-dark-gray border-b border-albor-bg-dark sticky top-0 bg-albor-bg-dark/80 backdrop-blur-sm z-10">
+                        <th className="py-1 px-2">SDR</th>
+                        <th className="py-1 px-2">Port</th>
+                        <th className="py-1 px-2">Status</th>
+                        <th className="py-1 px-2">Assignment</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-albor-bg-dark/50">
+                    {allPorts.map((port) => (
+                        <PortListItem key={`${port.sdrName}-${port.id}`} port={port} sdrName={port.sdrName} />
+                    ))}
+                    {allPorts.length === 0 && (
+                        <tr>
+                            <td colSpan={4} className="text-center py-4 text-albor-dark-gray italic">
+                                No SDR ports found.
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+  };
+
+  return (
+    // Adjust padding based on mode for better spacing in list view
+    <div className={`bg-albor-bg-dark/80 backdrop-blur-sm rounded border border-albor-bg-dark/50 h-full flex flex-col ${displayMode === 'map' ? 'p-4' : 'p-2'} ${className}`}>
+      {/* Title remains the same, content changes */}
+      <h3 className="text-base font-semibold text-albor-light-gray mb-3 flex-shrink-0">Port Assignment</h3>
+      <div className="flex-1 overflow-hidden min-h-0"> {/* Ensure inner div can scroll */}
+        {displayMode === 'map' ? renderMapView() : renderListView()}
+      </div>
     </div>
   );
 };

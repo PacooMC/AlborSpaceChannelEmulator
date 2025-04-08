@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
     import { X, Search, Satellite, RadioTower, Smartphone } from 'lucide-react';
     // Import marker data and types from the new content location
     import { dummyMarkers, MapMarker, NodeType } from '../../content/mapData';
+    // Removed scenarioSystemSummaryData import
 
     interface SearchPanelProps {
       onClose: () => void;
+      scenarioId: string | null; // Null for global view
       // onResultSelect?: (marker: MapMarker) => void;
     }
+
+    // Removed getMarkerScenarioId helper
 
     const getNodeIcon = (nodeType: NodeType) => {
         switch (nodeType) {
@@ -18,7 +22,7 @@ import React, { useState, useEffect } from 'react';
       };
 
 
-    const SearchPanel: React.FC<SearchPanelProps> = ({ onClose /*, onResultSelect */ }) => {
+    const SearchPanel: React.FC<SearchPanelProps> = ({ onClose, scenarioId /*, onResultSelect */ }) => {
       const [searchTerm, setSearchTerm] = useState('');
       const [searchResults, setSearchResults] = useState<MapMarker[]>([]);
 
@@ -30,12 +34,19 @@ import React, { useState, useEffect } from 'react';
         }
 
         const lowerCaseSearch = term.toLowerCase();
-        // Use the imported dummyMarkers for filtering
-        const filtered = (dummyMarkers || []).filter(marker =>
+
+        // --- UPDATED: Filter based on scenarioId first using marker.scenarioId ---
+        const markersToSearch = scenarioId === null
+            ? dummyMarkers // Search all markers in global view
+            : dummyMarkers.filter(marker => marker.scenarioId === scenarioId); // Search only scenario markers
+        // --- End Update ---
+
+        // Filter the relevant markers by name
+        const filtered = (markersToSearch || []).filter(marker =>
           marker.name.toLowerCase().includes(lowerCaseSearch)
         );
         setSearchResults(filtered);
-      }, [searchTerm]);
+      }, [searchTerm, scenarioId]); // Add scenarioId dependency
 
       const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(event.target.value);

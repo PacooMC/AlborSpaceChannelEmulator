@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
     import {
       ComposableMap,
       Geographies,
@@ -11,6 +11,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
     import MarkerInfoCard from './MarkerInfoCard';
     // Import types and data from the content file
     import { MapMarker, NodeType, dummyMarkers } from '../../content/mapData';
+    // Removed scenarioSystemSummaryData import as filtering is now direct
 
     const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -26,9 +27,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
     interface HologramMapProps {
       layerVisibility: LayerVisibility;
       isMaximized: boolean;
+      scenarioId: string | null; // Null for global view
     }
 
-    const HologramMap: React.FC<HologramMapProps> = ({ layerVisibility, isMaximized }) => {
+    // Removed getMarkerScenarioId helper
+
+    const HologramMap: React.FC<HologramMapProps> = ({ layerVisibility, isMaximized, scenarioId }) => {
       const [rotation, setRotation] = useState<[number, number, number]>([0, -30, 0]);
       // Use the imported dummyMarkers for the initial state
       const [markers, setMarkers] = useState<MapMarker[]>(dummyMarkers);
@@ -159,13 +163,26 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
         setSelectedMarker(null);
       };
 
+      // --- UPDATED: Filter markers based on scenarioId using marker.scenarioId ---
+      const filteredMarkers = useMemo(() => {
+        if (scenarioId === null) {
+            // Show all markers + markers explicitly marked as global (scenarioId === null)
+            return markers;
+        }
+        // Filter markers based on the scenario mapping
+        return markers.filter(marker => marker.scenarioId === scenarioId);
+      }, [markers, scenarioId]);
+      // --- End Update ---
+
       // Filter the component's state `markers`, not the imported `dummyMarkers`
-      const visibleMarkers = markers.filter(marker => {
+      // --- UPDATED: Use filteredMarkers for visibility check ---
+      const visibleMarkers = filteredMarkers.filter(marker => {
         if (marker.type === 'SAT') return layerVisibility.satellites;
         if (marker.type === 'GS') return layerVisibility.groundStations;
         if (marker.type === 'UE') return layerVisibility.userTerminals;
         return false;
       });
+      // --- End Update ---
 
       return (
         <div
@@ -244,9 +261,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 
                {/* Render footprints based on component's state `markers` */}
+               {/* --- UPDATED: Use filteredMarkers for footprints --- */}
                {layerVisibility.footprints && layerVisibility.satellites && (
                  <g className="footprints-group">
-                   {markers // Use component state `markers`
+                   {filteredMarkers // Use filteredMarkers
                      .filter(m => m.type === 'SAT' && m.footprintRadius)
                      .map(marker => {
                        const footprintGeoJson = generateFootprint(marker.coordinates[0], marker.coordinates[1], marker.footprintRadius!);
@@ -261,6 +279,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                      })}
                  </g>
                )}
+               {/* --- End Update --- */}
 
               {/* Render markers based on `visibleMarkers` */}
               <g className="markers-group">
