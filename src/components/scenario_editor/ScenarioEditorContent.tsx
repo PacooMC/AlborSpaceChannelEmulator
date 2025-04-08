@@ -588,14 +588,22 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
                    scenarioType={scenarioType} onInit={setRfInstance}
                  />
                </div>
-               <div className="h-[300px] flex flex-col flex-shrink-0 border-t border-albor-bg-dark">
-                  <div className="h-[150px] flex-shrink-0"> <GlobalMapView nodes={mapNodes} /> </div>
-                  <div className="h-[150px] flex-shrink-0 border-t border-albor-bg-dark"> <LinkOverviewPanel links={edges} nodes={nodes} scenarioType={scenarioType} /> </div>
+               {/* Bottom Panel Layout Adjustment: Side-by-side */}
+               {/* Increased Height, Adjusted Width Split */}
+               <div className="h-[300px] flex flex-shrink-0 border-t border-albor-bg-dark">
+                  {/* Give Map View 3/5 width */}
+                  <div className="w-3/5 h-full border-r border-albor-bg-dark">
+                      <GlobalMapView nodes={mapNodes} />
+                  </div>
+                  {/* Give Link Overview 2/5 width */}
+                  <div className="w-2/5 h-full">
+                      <LinkOverviewPanel links={edges} nodes={nodes} scenarioType={scenarioType} />
+                  </div>
                </div>
             </div>
             <div className="flex flex-col w-64 flex-shrink-0">
                 {/* Node List Sidebar */}
-                {/* *** Ensure parent div allows NodeListSidebar to fill width *** */}
+                {/* Ensure parent div allows NodeListSidebar to fill width */}
                 <div className="border-l border-b border-albor-bg-dark h-1/2"> {/* Adjusted height */}
                     <NodeListSidebar />
                 </div>

@@ -124,8 +124,16 @@
           .global-map-graticule { stroke: var(--color-albor-dark-gray); stroke-width: 0.05; opacity: 0.2; pointer-events: none; }
           .global-map-graticule-major { stroke: var(--color-albor-dark-gray); stroke-width: 0.1; opacity: 0.3; pointer-events: none; }
           .global-map-marker { cursor: pointer; transition: transform 0.15s ease-out; }
-          .global-map-marker:hover { transform: scale(1.5); }
-          .global-map-marker-icon { fill: var(--color-albor-orange); stroke: var(--color-albor-deep-space); stroke-width: 0.5; opacity: 1.0; }
+          .global-map-marker:hover { transform: scale(1.3); } /* Slightly larger hover */
+          .global-map-marker-icon {
+              /* Center icons properly */
+              transform: translate(-50%, -50%);
+              fill: var(--color-albor-orange);
+              stroke: var(--color-albor-deep-space);
+              stroke-width: 0.3; /* Thinner stroke */
+              opacity: 1.0;
+              filter: drop-shadow(0 0 1px rgba(0,0,0,0.5)); /* Add subtle shadow */
+          }
           .global-map-marker-icon.gs { fill: var(--color-hologram-blue); }
           .global-map-marker-icon.ue { fill: theme('colors.emerald.400'); }
           .global-map-marker-icon.default { fill: var(--color-albor-light-gray); }

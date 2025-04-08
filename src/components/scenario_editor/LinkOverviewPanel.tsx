@@ -28,23 +28,24 @@ import React from 'react';
               }
 
               return (
-                <div className="bg-albor-bg-dark/50 p-2 flex flex-col overflow-hidden">
+                // Added h-full and flex-col to allow inner div to scroll
+                <div className="bg-albor-bg-dark/50 p-2 flex flex-col overflow-hidden h-full">
                   <h4 className="text-sm font-semibold text-albor-light-gray mb-1 flex-shrink-0">Link Overview</h4>
+                  {/* Make this div scrollable */}
                   <div className="overflow-auto flex-1 -mr-2 pr-2">
                     {scenarioType === 'realistic' ? (
                         // Realistic Mode Message
-                        <div className="flex flex-col items-center justify-center h-full text-center text-albor-dark-gray text-xs p-4 space-y-2">
+                        <div className="flex flex-col items-center justify-center h-full text-center text-albor-dark-gray text-xs p-2 space-y-1">
                             {/* Changed LinkOff to Link2Off */}
-                            <Link2Off size={24} className="mb-1 opacity-50"/>
+                            <Link2Off size={20} className="mb-1 opacity-50"/>
                             <p className="font-semibold">Links Calculated Automatically</p>
-                            <p>In Realistic mode, links are determined by satellite orbits, ground positions, and line-of-sight calculations during simulation.</p>
-                            <p className="italic">(Manual link creation is disabled)</p>
+                            <p>In Realistic mode, links are determined by orbits, positions, and line-of-sight.</p>
                         </div>
                     ) : (
                         // Custom Mode Table
                         <table className="w-full text-left text-xs">
                           <thead>
-                            <tr className="text-albor-dark-gray border-b border-albor-bg-dark sticky top-0 bg-albor-bg-dark/50 backdrop-blur-sm z-10">
+                            <tr className="text-albor-dark-gray border-b border-albor-bg-dark sticky top-0 bg-albor-bg-dark/80 backdrop-blur-sm z-10"> {/* Darker sticky header */}
                               <th className="py-1 px-1">Link</th>
                               <th className="py-1 px-1">Freq/BW</th>
                               <th className="py-1 px-1">Channel Model</th>
@@ -52,6 +53,7 @@ import React from 'react';
                               <th className="py-1 px-1">Status</th>
                             </tr>
                           </thead>
+                          {/* Make tbody scrollable if needed, though parent div scrolls now */}
                           <tbody className="divide-y divide-albor-bg-dark/50">
                             {(links || []).map(link => {
                               if (!link || !link.id || !link.source || !link.target) return null;
