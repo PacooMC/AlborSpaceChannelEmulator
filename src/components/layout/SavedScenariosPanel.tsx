@@ -35,7 +35,7 @@ import React, { useState, useMemo } from 'react';
           }, [savedScenarios, searchTerm]);
 
           return (
-            <div className="mt-4 flex-1 flex flex-col min-h-0"> {/* Allow panel to grow and scroll */}
+            <div className="flex-1 flex flex-col min-h-0"> {/* Allow panel to grow and scroll */}
               <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center justify-between w-full px-1 mb-2 text-left group flex-shrink-0" // Prevent header from shrinking
@@ -43,7 +43,7 @@ import React, { useState, useMemo } from 'react';
                 <div className="flex items-center space-x-2">
                    <HardDrive size={16} className="text-albor-dark-gray group-hover:text-albor-light-gray transition-colors"/>
                    <h3 className="text-xs font-semibold text-albor-dark-gray uppercase tracking-wider group-hover:text-albor-light-gray transition-colors">
-                     Escenarios Guardados ({savedScenarios.length})
+                     Saved Scenarios ({savedScenarios.length})
                    </h3>
                 </div>
                 {isOpen ? <ChevronDown size={16} className="text-albor-dark-gray"/> : <ChevronRight size={16} className="text-albor-dark-gray"/>}
@@ -54,7 +54,7 @@ import React, { useState, useMemo } from 'react';
                   <div className="relative mb-2 flex-shrink-0"> {/* Prevent search from shrinking */}
                     <input
                       type="text"
-                      placeholder="Buscar por nombre o ID..."
+                      placeholder="Search by name or ID..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full bg-albor-deep-space/50 border border-albor-bg-dark rounded px-2 py-1 text-xs placeholder-albor-dark-gray focus:outline-none focus:ring-1 focus:ring-albor-orange"
@@ -69,7 +69,7 @@ import React, { useState, useMemo } from 'react';
                         <div
                           key={scenario.id}
                           // Add hover effect to the whole item
-                          className="flex items-center justify-between w-full p-1.5 rounded group hover:bg-albor-bg-dark/60 text-left cursor-pointer"
+                          className={`flex items-center justify-between w-full p-1.5 rounded group hover:bg-albor-bg-dark/60 text-left cursor-pointer transition-colors ${selectedScenarioIds.has(scenario.id) ? 'bg-albor-orange/20 ring-1 ring-albor-orange/50' : ''}`} // Highlight selected
                           // Load scenario on click of the item itself (excluding checkbox/buttons)
                           onClick={() => onLoadScenario(scenario.id)}
                         >
@@ -97,7 +97,7 @@ import React, { useState, useMemo } from 'react';
                             <button
                               onClick={(e) => { e.stopPropagation(); onLoadScenario(scenario.id); }} // Ensure load on button click too
                               className="p-1 rounded text-albor-dark-gray hover:text-albor-orange hover:bg-albor-orange/10 transition-colors"
-                              title="Cargar Escenario"
+                              title="Load Scenario"
                             >
                               <Download size={12} />
                             </button>
@@ -106,7 +106,7 @@ import React, { useState, useMemo } from 'react';
                       ))
                     ) : (
                       <p className="text-xs text-albor-dark-gray px-1 italic text-center py-3">
-                        {searchTerm ? 'No se encontraron escenarios.' : 'No hay escenarios guardados.'}
+                        {searchTerm ? 'No scenarios found.' : 'No saved scenarios.'}
                       </p>
                     )}
                   </div>

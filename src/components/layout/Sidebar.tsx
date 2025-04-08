@@ -1,11 +1,12 @@
 import React from 'react';
     import { LayoutDashboard, ListChecks, BarChart2, Settings, HardDrive, PlayCircle, PauseCircle, StopCircle } from 'lucide-react';
-    import type { Scenario } from '../../App';
-    // Removed SavedScenariosPanel import
+    import type { Scenario } from '../../content/scenarios'; // Keep Scenario type
+    import SavedScenariosPanel from './SavedScenariosPanel'; // Import the panel
+    import { SavedScenarioInfo } from '../../content/scenarioStore'; // Import type from store
 
     type ViewName = 'dashboard' | 'scenarios' | 'monitoring' | 'system' | 'settings';
 
-    // Removed SavedScenarioInfo type
+    // Removed SavedScenarioInfo type definition here
 
     type SidebarProps = {
       activeView: ViewName;
@@ -13,7 +14,10 @@ import React from 'react';
       runningScenarios: Scenario[];
       selectedScenarioId: string | null;
       setSelectedScenarioId: (id: string | null) => void;
-      // Removed savedScenarios, onLoadScenario, onDeleteScenario props
+      // --- Updated Props ---
+      savedScenarios: SavedScenarioInfo[]; // List of saved scenarios from store
+      onLoadScenario: (id: string | null) => void; // Function to trigger loading in App/Editor
+      // onDeleteScenario is likely handled within the editor now
     };
 
     const mainNavItems = [
@@ -39,12 +43,14 @@ import React from 'react';
       runningScenarios,
       selectedScenarioId,
       setSelectedScenarioId,
-      // Removed savedScenarios, onLoadScenario, onDeleteScenario props
+      // --- Use Updated Props ---
+      savedScenarios,
+      onLoadScenario,
     }) => {
 
       const handleScenarioSelect = (scenarioId: string) => {
         setSelectedScenarioId(scenarioId);
-        setActiveView('dashboard');
+        setActiveView('dashboard'); // Switch to dashboard for the selected running scenario
       };
 
       const handleGlobalDashboardSelect = () => {
@@ -52,22 +58,32 @@ import React from 'react';
         setActiveView('dashboard');
       };
 
-      // Removed handleLoadAndSwitch
+      // --- Handler to load scenario from Saved Panel ---
+      // This calls the App's trigger function
+      const handleLoadFromSavedPanel = (id: string | null) => {
+          onLoadScenario(id); // Call the prop function passed from App
+          // No need to switch view here, App handles it based on the load trigger
+      };
+
 
       return (
-        // Reverted width
         <aside className="w-64 bg-albor-bg-dark/80 backdrop-blur-sm p-4 border-r border-albor-bg-dark/50 flex flex-col overflow-y-auto">
           {/* Main Navigation */}
-          <nav className="space-y-1 mb-6">
+          <nav className="space-y-1 mb-6 flex-shrink-0"> {/* Prevent shrinking */}
             {mainNavItems.map((item) => (
               <button
                 key={item.name}
                 onClick={() => {
                   if (item.view === 'dashboard') {
                     handleGlobalDashboardSelect();
-                  } else {
+                  } else if (item.view === 'scenarios') {
+                    // When clicking "Scenarios", trigger load of null (new scenario)
+                    // or keep the currently loaded editor scenario? Let's load null for now.
+                    handleLoadFromSavedPanel(null);
+                  }
+                   else {
                     setActiveView(item.view);
-                    // Removed special handling for 'scenarios' click here
+                    setSelectedScenarioId(null); // Clear scenario context for non-dashboard/scenario views
                   }
                 }}
                 className={`flex items-center w-full p-2 rounded cursor-pointer group transition-colors duration-150 ease-in-out
@@ -96,7 +112,7 @@ import React from 'react';
           </nav>
 
           {/* Running Scenarios Section */}
-          <div className="space-y-1 flex-1"> {/* Added flex-1 to push down */}
+          <div className="space-y-1 mb-4 flex-shrink-0"> {/* Prevent shrinking */}
              <h3 className="text-xs font-semibold text-albor-dark-gray uppercase tracking-wider mb-2 px-1">Active Scenarios</h3>
              {runningScenarios.length > 0 ? (
                 runningScenarios.map((scenario) => (
@@ -104,7 +120,7 @@ import React from 'react';
                     key={scenario.id}
                     onClick={() => handleScenarioSelect(scenario.id)}
                     className={`flex items-center justify-between w-full p-2 rounded cursor-pointer group transition-colors duration-150 ease-in-out text-left
-                      ${ selectedScenarioId === scenario.id && activeView === 'dashboard'
+                      ${ selectedScenarioId === scenario.id && (activeView === 'dashboard' || activeView === 'monitoring') // Highlight if selected for dash or monitoring
                         ? 'bg-albor-bg-dark/70 ring-1 ring-albor-orange/50'
                         : 'text-albor-light-gray hover:bg-albor-bg-dark/60'
                       }`}
@@ -120,9 +136,16 @@ import React from 'react';
              )}
           </div>
 
-          {/* Removed Saved Scenarios Panel */}
-
-          <div className="mt-auto"></div>
+          {/* Saved Scenarios Panel - Allow to take remaining space */}
+          <div className="flex-1 flex flex-col min-h-0">
+              <SavedScenariosPanel
+                  savedScenarios={savedScenarios}
+                  selectedScenarioIds={new Set()} // Main sidebar doesn't manage selection state
+                  onLoadScenario={handleLoadFromSavedPanel} // Use the specific handler
+                  onToggleSelection={() => {}} // No multi-select actions here
+                  initiallyOpen={true} // Keep open
+              />
+          </div>
 
         </aside>
       );

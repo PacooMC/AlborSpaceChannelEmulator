@@ -12,6 +12,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
       Edge as ReactFlowEdge,
     } from 'reactflow';
     import { debounce } from 'lodash-es';
+    import { isEqual } from 'lodash-es'; // Import deep comparison
 
     import ScenarioTopBar from './ScenarioTopBar';
     import NodeListSidebar from './NodeListSidebar';
@@ -22,56 +23,58 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
     import GlobalMapView from './GlobalMapView';
     import ScenarioManagementSidebar from './ScenarioManagementSidebar';
     import { ScenarioNode, ScenarioEdge, NodeType, ContextMenuData, HistoryEntry, CustomNodeData, ScenarioType, ScenarioState, CustomEdgeData } from './types';
+    // Import the new scenario store functions
+    import {
+        getScenarioList,
+        loadScenario,
+        saveScenario,
+        deleteScenario,
+        generateNewScenarioId,
+        getNewScenarioDefaultState,
+        SavedScenarioInfo
+    } from '../../content/scenarioStore';
 
     // --- Constants ---
     const MAX_HISTORY_SIZE = 50;
-    const LOCAL_STORAGE_PREFIX = 'albor_scenario_';
-    const AUTOSAVE_DEBOUNCE_MS = 1500;
+    // const LOCAL_STORAGE_PREFIX = 'albor_scenario_'; // No longer needed
+    const AUTOSAVE_DEBOUNCE_MS = 1500; // Keep for potential future use
 
-    // --- Initial Data (Improved Default) ---
-    const initialNodes: Node<CustomNodeData>[] = [
-      { id: 'sat-leo-default', type: 'SAT', position: { x: 200, y: 150 }, data: { type: 'SAT', name: 'Sat-Default-LEO', tle: "1 25544U 98067A   23310.56318310  .00016717  00000-0  30306-3 0  9999\n2 25544  51.6410 218.9064 0006703 148.7738 211.3391 15.49013835396839" } },
-      { id: 'gs-default', type: 'GS', position: { x: 450, y: 350 }, data: { type: 'GS', name: 'GS-Default', latitude: 40.4168, longitude: -3.7038, altitude: 650 } },
-      { id: 'ue-default', type: 'UE', position: { x: 650, y: 200 }, data: { type: 'UE', name: 'UE-Default', latitude: 48.8566, longitude: 2.3522, altitude: 35 } },
-    ];
-    const initialEdges: ReactFlowEdge<CustomEdgeData>[] = [];
-    const initialViewport: Viewport = { x: 0, y: 0, zoom: 0.9 };
+    // --- Initial Data (Now handled by store/new state function) ---
+    // const initialNodes: Node<CustomNodeData>[] = [ ... ]; // Removed
+    // const initialEdges: ReactFlowEdge<CustomEdgeData>[] = []; // Removed
+    const initialViewport: Viewport = { x: 0, y: 0, zoom: 1 }; // Keep as default
 
-    interface SavedScenarioInfo { id: string; name: string; }
+    // interface SavedScenarioInfo { id: string; name: string; } // Moved to store
 
-    // --- Local Storage Utilities ---
-    const saveScenarioToLocalStorage = (id: string, state: ScenarioState) => { try { const key = `${LOCAL_STORAGE_PREFIX}${id}`; localStorage.setItem(key, JSON.stringify(state)); console.log(`DEBUG: Scenario '${id}' saved.`); } catch (error) { console.error("Error saving scenario:", error); } };
-    const loadScenarioFromLocalStorage = (id: string): ScenarioState | null => { try { const key = `${LOCAL_STORAGE_PREFIX}${id}`; const savedState = localStorage.getItem(key); return savedState ? JSON.parse(savedState) as ScenarioState : null; } catch (error) { console.error("Error loading scenario:", error); return null; } };
-    const getSavedScenarios = (): SavedScenarioInfo[] => { const scenarios: SavedScenarioInfo[] = []; try { for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key && key.startsWith(LOCAL_STORAGE_PREFIX)) { const scenarioId = key.substring(LOCAL_STORAGE_PREFIX.length); const savedStateRaw = localStorage.getItem(key); let scenarioName = `Unnamed Scenario (${scenarioId.substring(0, 4)}...)`; if (savedStateRaw) { try { const savedState = JSON.parse(savedStateRaw) as Partial<ScenarioState>; if (savedState.name && savedState.name.trim() !== '') { scenarioName = savedState.name; } } catch (e) { /* ignore parsing error for name */ } } scenarios.push({ id: scenarioId, name: scenarioName }); } } } catch (error) { console.error("Error reading saved scenarios:", error); } return scenarios.sort((a, b) => a.name.localeCompare(b.name)); };
-    // --- End Local Storage Utilities ---
+    // --- Local Storage Utilities --- REMOVED ---
 
     interface ScenarioEditorContentProps {
-      scenarioId: string | null; // Renamed from scenarioIdToLoad for clarity
-      isLoadingScenario: boolean;
-      onStartScenario: (id: string, name: string) => void;
-      onLoadScenario: (id: string | null) => void; // Keep this to trigger load from App
-      onScenarioSaved: () => void; // Callback when a save occurs
+      scenarioId: string | null; // ID passed from App to load initially
+      isLoadingScenario: boolean; // Loading state from App (might be less relevant now)
+      onStartScenario: (id: string, name: string) => void; // Function to start the current scenario
+      onLoadScenario: (id: string | null) => void; // Function to trigger loading a scenario in App
+      onScenarioSaved: () => void; // Callback when a save/delete occurs (e.g., to refresh external lists if needed)
     }
 
     // Define the component function
     const ScenarioEditorContentComponent: React.FC<ScenarioEditorContentProps> = ({
-      scenarioId: currentScenarioIdProp, // Use the prop name
-      isLoadingScenario,
+      scenarioId: initialScenarioIdProp, // Use the prop name for initial load trigger
+      isLoadingScenario: isLoadingFromApp, // Rename to avoid confusion
       onStartScenario,
-      onLoadScenario, // Keep receiving this prop
+      onLoadScenario: notifyAppToLoad, // Rename for clarity
       onScenarioSaved,
     }) => {
-      const [nodes, setNodes, onNodesChangeDirect] = useNodesState<CustomNodeData>(initialNodes);
-      const [edges, setEdges, onEdgesChangeDirect] = useEdgesState<CustomEdgeData>(initialEdges);
+      const [nodes, setNodes, onNodesChangeDirect] = useNodesState<CustomNodeData>([]); // Start empty
+      const [edges, setEdges, onEdgesChangeDirect] = useEdgesState<CustomEdgeData>([]); // Start empty
       const [scenarioName, setScenarioName] = useState<string>("New Scenario");
-      const [scenarioType, setScenarioType] = useState<ScenarioType>('realistic'); // Default to realistic
+      const [scenarioType, setScenarioType] = useState<ScenarioType>('realistic');
       const [currentScenarioIdInternal, setCurrentScenarioIdInternal] = useState<string | null>(null); // Internal tracking ID
       const [selectedNode, setSelectedNode] = useState<ScenarioNode | null>(null);
       const [selectedEdge, setSelectedEdge] = useState<ScenarioEdge | null>(null);
       const [contextMenu, setContextMenu] = useState<ContextMenuData | null>(null);
-      const [history, setHistory] = useState<HistoryEntry[]>([]);
-      const [historyIndex, setHistoryIndex] = useState<number>(-1);
-      const isUndoingRedoing = useRef(false);
+      // const [history, setHistory] = useState<HistoryEntry[]>([]); // History might need rework with async save/load
+      // const [historyIndex, setHistoryIndex] = useState<number>(-1);
+      // const isUndoingRedoing = useRef(false);
       const internalChangeRef = useRef(false); // Tracks changes made internally (load, undo/redo)
       const reactFlowWrapperRef = useRef<HTMLDivElement>(null);
       const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
@@ -79,169 +82,338 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
       const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
       const isInitialLoadDone = useRef(false); // Tracks if the initial load effect has finished
       const [selectedScenarioIds, setSelectedScenarioIds] = useState<Set<string>>(new Set()); // State for multi-select
+      const [isLoading, setIsLoading] = useState<boolean>(false); // Internal loading state
+      const [lastSavedState, setLastSavedState] = useState<ScenarioState | null>(null); // State for comparison
 
-      // Fetch saved scenarios on mount
-      useEffect(() => { setSavedScenarios(getSavedScenarios()); }, []);
+      const { setViewport, getViewport } = useReactFlow(); // Get viewport functions
 
-      // *** DEBUG: Comment out complex hooks/effects ***
+      // --- Fetch saved scenarios list ---
+      const refreshScenarioList = useCallback(async () => {
+        console.log("DEBUG: Refreshing scenario list...");
+        setIsLoading(true);
+        try {
+            const list = await getScenarioList();
+            setSavedScenarios(list);
+            console.log("DEBUG: Scenario list refreshed:", list.length, "items");
+        } catch (error) {
+            console.error("Error fetching scenario list:", error);
+            // Handle error display if needed
+        } finally {
+            setIsLoading(false);
+        }
+      }, []);
 
-      // const saveHistory = useCallback(() => { /* ... */ }, [nodes, edges, history, historyIndex, rfInstance]);
-      // useEffect(() => { if (!isUndoingRedoing.current && !internalChangeRef.current && isInitialLoadDone.current) { saveHistory(); } }, [nodes, edges, saveHistory]);
+      useEffect(() => {
+        refreshScenarioList();
+      }, [refreshScenarioList]);
 
-      // --- Load Scenario Data --- *** RESTORED ***
-      const loadScenarioData = useCallback((idToLoad: string | null) => {
-        // Confirmation is now handled before calling this via onLoadScenario prop
+      // --- Get Current Editor State ---
+      const getCurrentState = useCallback((): ScenarioState => {
+        return {
+          name: scenarioName,
+          scenarioType: scenarioType,
+          nodes: nodes,
+          edges: edges,
+          viewport: getViewport(),
+        };
+      }, [scenarioName, scenarioType, nodes, edges, getViewport]);
 
+      // --- Compare States ---
+      const compareStates = useCallback((stateA: ScenarioState | null, stateB: ScenarioState | null): boolean => {
+        if (stateA === null || stateB === null) {
+          return stateA === stateB; // True if both are null, false otherwise
+        }
+        // Compare specific fields for unsaved changes detection
+         return (
+            stateA.name === stateB.name &&
+            stateA.scenarioType === stateB.scenarioType &&
+            isEqual(stateA.nodes, stateB.nodes) && // Deep compare nodes
+            isEqual(stateA.edges, stateB.edges) // Deep compare edges
+            // Optionally exclude viewport: && isEqual(stateA.viewport, stateB.viewport)
+        );
+      }, []);
+
+      // --- Effect to check for unsaved changes ---
+      useEffect(() => {
+        if (!isInitialLoadDone.current || internalChangeRef.current || lastSavedState === null) {
+            // Don't check for changes during initial load, internal ops, or if it's a pristine new scenario
+            return;
+        }
+
+        const currentState = getCurrentState();
+        const areStatesEqual = compareStates(currentState, lastSavedState);
+
+        if (!areStatesEqual && !hasUnsavedChanges) {
+            console.log("DEBUG: Unsaved changes DETECTED.");
+            setHasUnsavedChanges(true);
+        } else if (areStatesEqual && hasUnsavedChanges) {
+            // This case might happen if user undoes changes back to saved state
+            console.log("DEBUG: Changes reverted to saved state.");
+            setHasUnsavedChanges(false);
+        }
+        // If states are equal and hasUnsavedChanges is false, do nothing.
+      }, [nodes, edges, scenarioName, scenarioType, lastSavedState, getCurrentState, compareStates, hasUnsavedChanges]);
+
+
+      // --- Load Scenario Data ---
+      const loadScenarioData = useCallback(async (idToLoad: string | null) => {
         console.log(`DEBUG: Starting loadScenarioData for ID: ${idToLoad}`);
         internalChangeRef.current = true; // Mark as internal change START
-        isInitialLoadDone.current = false; // Mark initial load as not done yet
-        setHasUnsavedChanges(false); // Reset unsaved changes flag *during* load
-        setSelectedScenarioIds(new Set()); // Clear multi-selection on load
-        console.log("DEBUG: hasUnsavedChanges reset to false at start of load.");
+        isInitialLoadDone.current = false;
+        setIsLoading(true);
+        setHasUnsavedChanges(false); // Reset initially
+        setSelectedScenarioIds(new Set());
+        setSelectedNode(null);
+        setSelectedEdge(null);
+        setContextMenu(null);
 
         let loadedState: ScenarioState | null = null;
         let effectiveId = idToLoad;
-        let name = "New Scenario";
-        let type: ScenarioType = 'realistic'; // Default to realistic for new
-        let loadedNodes = initialNodes;
-        let loadedEdges = initialEdges;
-        let loadedViewport = initialViewport;
+        let isNewScenario = false;
 
-        if (!effectiveId) {
-          effectiveId = `session_${nanoid(8)}`;
-          console.log(`DEBUG: Created new session ID: ${effectiveId}`);
-        } else {
-          loadedState = loadScenarioFromLocalStorage(effectiveId);
-          if (loadedState) {
-            console.log(`DEBUG: Found saved state for ${effectiveId}`);
-            name = loadedState.name || `Loaded Scenario (${effectiveId.substring(0,4)}...)`;
-            type = loadedState.scenarioType || 'realistic';
-            loadedNodes = loadedState.nodes || initialNodes;
-            loadedEdges = loadedState.edges || initialEdges;
-            loadedViewport = loadedState.viewport || initialViewport;
-          } else {
-            console.warn(`DEBUG: No saved state found for ${effectiveId}, initializing.`);
-            name = `Scenario ${effectiveId.substring(0, 4)}...`;
-            // Keep defaults: realistic, initialNodes, initialEdges, initialViewport
-          }
-        }
-
-        setCurrentScenarioIdInternal(effectiveId); // Update internal ID tracking
-        setScenarioName(name);
-        setScenarioType(type);
-        setNodes(loadedNodes);
-        setEdges(loadedEdges);
-        if (rfInstance) { rfInstance.setViewport(loadedViewport); }
-        setHistory([{ nodes: loadedNodes, edges: loadedEdges, viewport: loadedViewport }]);
-        setHistoryIndex(0);
-        setSelectedNode(null); setSelectedEdge(null); setContextMenu(null);
-
-        // Use setTimeout to ensure state updates propagate before resetting flags
-        // Increased delay slightly
-        setTimeout(() => {
-            internalChangeRef.current = false; // Mark as internal change END
-            isInitialLoadDone.current = true; // Mark initial load as DONE
-            console.log("DEBUG: internalChangeRef and isInitialLoadDone reset after load timeout.");
-            // Fit view only if viewport wasn't explicitly loaded
-            if (rfInstance && !loadedState?.viewport) {
-                rfInstance.fitView({ padding: 0.1, duration: 200 });
+        try {
+            if (effectiveId) {
+                loadedState = await loadScenario(effectiveId);
+                if (!loadedState) {
+                    console.warn(`DEBUG: Scenario ${effectiveId} not found in store, creating new.`);
+                    effectiveId = null; // Treat as new scenario creation
+                }
             }
-        }, 150); // Increased delay
 
-        return true; // Indicate load proceeded (though confirmation is now outside)
-      }, [rfInstance, setNodes, setEdges]); // *** RESTORED Dependencies ***
+            if (!effectiveId) {
+                // Create a new scenario state
+                isNewScenario = true;
+                effectiveId = generateNewScenarioId(); // Generate ID for internal tracking
+                loadedState = getNewScenarioDefaultState();
+                console.log(`DEBUG: Created new scenario state with temp ID: ${effectiveId}`);
+            }
 
-      // Effect to load data when the scenarioId prop changes *** RESTORED ***
+            if (loadedState) {
+                setCurrentScenarioIdInternal(effectiveId);
+                setScenarioName(loadedState.name);
+                setScenarioType(loadedState.scenarioType);
+                setNodes(loadedState.nodes);
+                setEdges(loadedState.edges);
+                setViewport(loadedState.viewport); // Use setViewport from useReactFlow
+                // Store null as last saved for new scenarios, otherwise store loaded state
+                setLastSavedState(isNewScenario ? null : JSON.parse(JSON.stringify(loadedState)));
+                setHasUnsavedChanges(false); // Start clean, changes detected by useEffect later
+                console.log(`DEBUG: Scenario ${effectiveId} loaded. Name: ${loadedState.name}. Is New: ${isNewScenario}`);
+            } else {
+                 console.error("DEBUG: Failed to load or create scenario state.");
+                 // Handle error state - load a default empty state
+                 const defaultState = getNewScenarioDefaultState();
+                 setCurrentScenarioIdInternal(generateNewScenarioId());
+                 setScenarioName(defaultState.name);
+                 setScenarioType(defaultState.scenarioType);
+                 setNodes(defaultState.nodes);
+                 setEdges(defaultState.edges);
+                 setViewport(defaultState.viewport);
+                 setLastSavedState(null); // No saved state
+                 setHasUnsavedChanges(false); // Start clean
+            }
+
+        } catch (error) {
+            console.error("Error during scenario load:", error);
+            // Handle error display
+        } finally {
+            // Use setTimeout to allow state updates and rendering
+            setTimeout(() => {
+                internalChangeRef.current = false; // Mark as internal change END
+                isInitialLoadDone.current = true; // Mark initial load as DONE
+                setIsLoading(false);
+                console.log("DEBUG: Load process finished. internalChangeRef/isInitialLoadDone reset.");
+                 // Fit view only for newly created scenarios or if viewport wasn't explicitly loaded?
+                if (rfInstance && (isNewScenario || !loadedState?.viewport || loadedState?.nodes.length === 0)) {
+                     rfInstance.fitView({ padding: 0.1, duration: 200 });
+                }
+            }, 100);
+        }
+      }, [rfInstance, setNodes, setEdges, setViewport, compareStates]); // Added compareStates dependency
+
+      // Effect to load data when the initialScenarioIdProp changes
       useEffect(() => {
-        console.log("DEBUG: scenarioId prop changed to:", currentScenarioIdProp);
-        loadScenarioData(currentScenarioIdProp);
-      }, [currentScenarioIdProp, loadScenarioData]); // Depend on the prop
+        console.log("DEBUG: initialScenarioIdProp changed to:", initialScenarioIdProp);
+        // Loading logic now happens within loadScenarioData, triggered by prop change
+        loadScenarioData(initialScenarioIdProp);
+      }, [initialScenarioIdProp]); // Depend only on the initial prop
 
 
-      // --- Modified State Change Handlers ---
-      const markUnsavedChanges = () => {
-          // Only mark unsaved if it's not an internal change and initial load is done
-          if (!internalChangeRef.current && isInitialLoadDone.current) {
-              setHasUnsavedChanges(true);
-              console.log("DEBUG: Unsaved changes MARKED.");
-          } else {
-              console.log(`DEBUG: Unsaved changes NOT marked (internalChange: ${internalChangeRef.current}, initialLoadDone: ${isInitialLoadDone.current})`);
-          }
-      };
-
+      // --- State Change Handlers ---
       const onNodesChange = useCallback((changes: NodeChange[]) => {
         onNodesChangeDirect(changes);
-        if (changes.length > 0) markUnsavedChanges();
-      }, [onNodesChangeDirect]); // Keep basic handlers
+        // Unsaved changes check is now handled by the useEffect watching nodes/edges etc.
+      }, [onNodesChangeDirect]);
 
       const onEdgesChange = useCallback((changes: EdgeChange[]) => {
         onEdgesChangeDirect(changes);
-         if (changes.length > 0) markUnsavedChanges();
-      }, [onEdgesChangeDirect]); // Keep basic handlers
+        // Unsaved changes check is now handled by the useEffect watching nodes/edges etc.
+      }, [onEdgesChangeDirect]);
 
       const handleScenarioNameChange = (newName: string) => {
         setScenarioName(newName);
-        markUnsavedChanges();
+        // Unsaved changes check handled by useEffect
       };
 
-      // --- REFINED V2: Scenario Type Change Handler ---
       const handleScenarioTypeChangeInternal = (newType: ScenarioType) => {
-        if (newType === scenarioType) return; // No change needed
+        if (newType === scenarioType) return;
 
         // Check for unsaved changes before proceeding
-        if (hasUnsavedChanges) {
-            // If user clicks Cancel (confirm returns false), abort.
-            if (!window.confirm("Tienes cambios sin guardar. ¿Descartar cambios y cambiar el tipo de escenario?")) {
+        // Skip check if it's a pristine new scenario (lastSavedState is null)
+        if (hasUnsavedChanges && lastSavedState !== null) {
+            if (!window.confirm("You have unsaved changes. Discard changes and switch scenario type?")) {
                 console.log("DEBUG: Scenario type change cancelled due to unsaved changes.");
                 return; // Abort the change
             }
             console.log("DEBUG: User confirmed discarding changes for type switch.");
-            // If user clicks OK (confirm returns true), proceed.
         }
 
         console.log(`DEBUG: Changing scenario type to ${newType}`);
         internalChangeRef.current = true; // Mark as internal change START
-        setHasUnsavedChanges(false); // Reset unsaved changes flag *before* state update
 
-        // Apply state changes
         setScenarioType(newType);
         setSelectedNode(null);
         setSelectedEdge(null);
         setContextMenu(null);
         if (newType === 'realistic') {
             console.log("DEBUG: Clearing edges for realistic mode.");
-            setEdges([]);
+            setEdges([]); // This will trigger the useEffect for unsaved changes check
+        }
+        // Mark unsaved if switching type on a previously saved scenario
+        if (lastSavedState !== null) {
+            setHasUnsavedChanges(true);
         }
 
-        // Reset internal change flag *immediately* after initiating state changes
-        internalChangeRef.current = false;
-        console.log("DEBUG: internalChangeRef reset immediately after state change calls.");
+        // Reset internal change flag after state updates are likely processed
+        setTimeout(() => {
+            internalChangeRef.current = false;
+            console.log("DEBUG: internalChangeRef reset after type change timeout.");
+        }, 50);
       };
-      // --- End Modified Handlers ---
-
 
       // --- Save Action ---
-      // const handleSave = useCallback(() => {
-      //   // ... (save logic)
-      // }, [nodes, edges, rfInstance, scenarioName, scenarioType, currentScenarioIdInternal, onScenarioSaved]);
+      const handleSave = useCallback(async () => {
+        if (!currentScenarioIdInternal) {
+            console.error("Cannot save, no current scenario ID.");
+            alert("Error: No scenario ID. Please use 'Save As'.");
+            return;
+        }
+        console.log(`DEBUG: Saving scenario ID: ${currentScenarioIdInternal}`);
+        internalChangeRef.current = true;
+        setIsLoading(true);
+        const currentState = getCurrentState();
+        try {
+            await saveScenario(currentScenarioIdInternal, currentState);
+            setLastSavedState(JSON.parse(JSON.stringify(currentState))); // Update last saved state
+            setHasUnsavedChanges(false); // Mark as saved
+            console.log("DEBUG: Scenario saved successfully.");
+            onScenarioSaved(); // Notify parent
+            await refreshScenarioList(); // Refresh list
+        } catch (error) {
+            console.error("Error saving scenario:", error);
+            alert(`Error saving scenario: ${error}`);
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => { internalChangeRef.current = false; }, 50);
+        }
+      }, [currentScenarioIdInternal, getCurrentState, onScenarioSaved, refreshScenarioList]);
 
       // --- Save As Action ---
-      // const handleSaveAs = useCallback(() => {
-      //   // ... (save as logic)
-      // }, [nodes, edges, rfInstance, scenarioName, scenarioType, onScenarioSaved]);
+      const handleSaveAs = useCallback(async () => {
+        const newName = prompt("Enter new scenario name:", `${scenarioName} Copy`);
+        if (!newName || newName.trim() === '') {
+            console.log("DEBUG: Save As cancelled.");
+            return;
+        }
+
+        const newId = generateNewScenarioId();
+        console.log(`DEBUG: Saving As new scenario ID: ${newId}, Name: ${newName}`);
+        internalChangeRef.current = true;
+        setIsLoading(true);
+
+        const currentState = getCurrentState();
+        const newState: ScenarioState = {
+            ...currentState,
+            name: newName.trim(), // Use the new name
+        };
+
+        try {
+            await saveScenario(newId, newState); // Save with the new ID
+            setCurrentScenarioIdInternal(newId); // Update the current ID
+            setScenarioName(newState.name); // Update the current name
+            setLastSavedState(JSON.parse(JSON.stringify(newState))); // Update last saved state
+            setHasUnsavedChanges(false); // Mark as saved
+            console.log("DEBUG: Scenario saved successfully with new ID.");
+            onScenarioSaved(); // Notify parent
+            await refreshScenarioList(); // Refresh the list to show the new scenario
+            // Notify App that the context has changed to the new ID
+            notifyAppToLoad(newId);
+        } catch (error) {
+            console.error("Error saving scenario as:", error);
+            alert(`Error saving scenario: ${error}`);
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => { internalChangeRef.current = false; }, 50);
+        }
+      }, [scenarioName, getCurrentState, onScenarioSaved, refreshScenarioList, notifyAppToLoad]);
 
 
-      // --- Auto-Save ---
-      // const debouncedAutoSave = useCallback( debounce((id: string | null, state: ScenarioState) => { if (id) { saveScenarioToLocalStorage(id, state); console.log("DEBUG: Auto-save triggered for", id); } }, AUTOSAVE_DEBOUNCE_MS), [] );
-      // useEffect(() => {
-      //   // ... (auto-save logic)
-      // }, [nodes, edges, scenarioName, scenarioType, rfInstance, currentScenarioIdInternal, debouncedAutoSave, hasUnsavedChanges]); // Include hasUnsavedChanges
+      // --- Other Handlers (Simplified - Add/Delete/Update need internalChangeRef) ---
+      const handleAddNode = useCallback((type: NodeType, clientX: number, clientY: number) => {
+          if (!rfInstance) return;
+          internalChangeRef.current = true;
+          const position = rfInstance.screenToFlowPosition({ x: clientX, y: clientY });
+          const newNode: ScenarioNode = {
+            id: `${type.toLowerCase()}-${nanoid(5)}`,
+            type: type,
+            position: position,
+            data: { type: type, name: `${type}-${nodes.filter(n => n.data.type === type).length + 1}` },
+          };
+          setNodes((nds) => nds.concat(newNode));
+          // Mark unsaved if adding to a previously saved state or a new state
+          setHasUnsavedChanges(true);
+          setTimeout(() => { internalChangeRef.current = false; }, 50);
+       }, [rfInstance, setNodes, nodes]); // Removed lastSavedState dependency here
 
-      // --- Other Handlers ---
-      // const handleAddNode = useCallback((type: NodeType, clientX: number, clientY: number) => { /* ... */ }, [rfInstance, setNodes, nodes]);
-      // const handleDeleteItem = useCallback((itemId: string) => { /* ... */ }, [setNodes, setEdges]);
-      // const handleNodeUpdate = useCallback((nodeId: string, updates: Partial<CustomNodeData>) => { /* ... */ }, [setNodes]);
-      // const handleEdgeUpdate = useCallback((edgeId: string, updates: Partial<CustomEdgeData>) => { /* ... */ }, [setEdges]);
+      const handleDeleteItem = useCallback((itemId: string) => {
+          internalChangeRef.current = true;
+          setNodes((nds) => nds.filter(node => node.id !== itemId));
+          setEdges((eds) => eds.filter(edge => edge.id !== itemId && edge.source !== itemId && edge.target !== itemId));
+          setSelectedNode(null);
+          setSelectedEdge(null);
+          setContextMenu(null);
+          // Mark unsaved if deleting from a previously saved state or a new state
+          setHasUnsavedChanges(true);
+          setTimeout(() => { internalChangeRef.current = false; }, 50);
+        }, [setNodes, setEdges]); // Removed lastSavedState dependency here
+
+      const handleNodeUpdate = useCallback((nodeId: string, updates: Partial<CustomNodeData>) => {
+          internalChangeRef.current = true;
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId ? { ...node, data: { ...node.data, ...updates } } : node
+            )
+          );
+          setSelectedNode(prev => prev && prev.id === nodeId ? { ...prev, data: { ...prev.data, ...updates } } : prev);
+          // Mark unsaved if updating a previously saved state or a new state
+          setHasUnsavedChanges(true);
+          setTimeout(() => { internalChangeRef.current = false; }, 50);
+        }, [setNodes]); // Removed lastSavedState dependency here
+
+      const handleEdgeUpdate = useCallback((edgeId: string, updates: Partial<CustomEdgeData>) => {
+          internalChangeRef.current = true;
+          setEdges((eds) =>
+            eds.map((edge) =>
+              edge.id === edgeId ? { ...edge, data: { ...edge.data, ...updates } } : edge
+            )
+          );
+           setSelectedEdge(prev => prev && prev.id === edgeId ? { ...prev, data: { ...prev.data, ...updates } } : prev);
+          // Mark unsaved if updating a previously saved state or a new state
+          setHasUnsavedChanges(true);
+          setTimeout(() => { internalChangeRef.current = false; }, 50);
+        }, [setEdges]); // Removed lastSavedState dependency here
+
+      // --- Click/Context Handlers (No change needed) ---
       const handleNodeClick = useCallback((event: React.MouseEvent, node: ScenarioNode) => { setSelectedNode(node); setSelectedEdge(null); setContextMenu(null); }, []);
       const handleEdgeClick = useCallback((event: React.MouseEvent, edge: ScenarioEdge) => { if (scenarioType === 'custom') { setSelectedEdge(edge); setSelectedNode(null); setContextMenu(null); } else { setSelectedEdge(null); setSelectedNode(null); setContextMenu(null); } }, [scenarioType]);
       const handlePaneClick = useCallback(() => { setSelectedNode(null); setSelectedEdge(null); setContextMenu(null); }, []);
@@ -249,82 +421,139 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
       const handleEdgeContextMenu = useCallback((event: React.MouseEvent, edge: ScenarioEdge) => { event.preventDefault(); if (scenarioType === 'custom') { setSelectedEdge(edge); setSelectedNode(null); setContextMenu({ x: event.clientX, y: event.clientY, type: 'edge', itemId: edge.id }); } }, [scenarioType]);
       const handlePaneContextMenu = useCallback((event: React.MouseEvent) => { event.preventDefault(); setSelectedNode(null); setSelectedEdge(null); setContextMenu({ x: event.clientX, y: event.clientY, type: 'pane' }); }, []);
       const handleCloseContextMenu = useCallback(() => { setContextMenu(null); }, []);
-      const onDrop = useCallback((event: React.DragEvent) => { event.preventDefault(); event.currentTarget.classList.remove('drag-over'); const type = event.dataTransfer.getData('application/node-type') as NodeType | undefined; if (!type || !rfInstance) return; /* handleAddNode(type, event.clientX, event.clientY); */ }, [/* handleAddNode, */ rfInstance]); // Commented out handleAddNode call
+
+      // --- Drag/Drop Handlers ---
+      const onDrop = useCallback((event: React.DragEvent) => { event.preventDefault(); event.currentTarget.classList.remove('drag-over'); const type = event.dataTransfer.getData('application/node-type') as NodeType | undefined; if (!type || !rfInstance) return; handleAddNode(type, event.clientX, event.clientY); }, [handleAddNode, rfInstance]);
       const onDragOver = useCallback((event: React.DragEvent) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; const target = event.target as HTMLElement; target.closest('.react-flow')?.parentElement?.classList.add('drag-over'); }, []);
       const onDragLeave = useCallback((event: React.DragEvent) => { const target = event.target as HTMLElement; target.closest('.react-flow')?.parentElement?.classList.remove('drag-over'); }, []);
-      // --- End Other Handlers ---
 
       // --- Scenario Action Handlers ---
-      // const triggerStartScenario = useCallback(() => { /* ... */ }, [currentScenarioIdInternal, scenarioName, onStartScenario, hasUnsavedChanges, handleSave]);
+      const triggerStartScenario = useCallback(() => {
+        if (!currentScenarioIdInternal) {
+            alert("Please save the scenario before starting the simulation.");
+            return;
+        }
+        if (hasUnsavedChanges && lastSavedState !== null) { // Only ask if it's not a new scenario
+            if (window.confirm("You have unsaved changes. Save before starting simulation?")) {
+                handleSave().then(() => {
+                    // Check if save was successful? For now, assume it was.
+                    if (currentScenarioIdInternal) { // Re-check ID after potential save
+                       onStartScenario(currentScenarioIdInternal, scenarioName);
+                    }
+                });
+            } else {
+                // Start without saving (use last saved state implicitly)
+                onStartScenario(currentScenarioIdInternal, scenarioName);
+            }
+        } else {
+            // No unsaved changes or it's a new unsaved scenario, start directly
+            onStartScenario(currentScenarioIdInternal, scenarioName);
+        }
+      }, [currentScenarioIdInternal, scenarioName, onStartScenario, hasUnsavedChanges, handleSave, lastSavedState]);
 
       // --- Multi-Select Handlers ---
-      // *** RESTORED handleToggleSelection ***
       const handleToggleScenarioSelection = useCallback((id: string) => {
         setSelectedScenarioIds(prev => {
           const newSet = new Set(prev);
-          if (newSet.has(id)) {
-            newSet.delete(id);
-          } else {
-            newSet.add(id);
-          }
+          if (newSet.has(id)) { newSet.delete(id); } else { newSet.add(id); }
           return newSet;
         });
-      }, []); // *** RESTORED Dependencies (empty) ***
+      }, []);
 
-      // *** RESTORED handleDeleteSelectedScenarios ***
-      const handleDeleteSelectedScenarios = useCallback(() => {
+      const handleDeleteSelectedScenarios = useCallback(async () => {
         if (selectedScenarioIds.size === 0) return;
-
         const scenariosToDelete = savedScenarios.filter(s => selectedScenarioIds.has(s.id));
         const namesToDelete = scenariosToDelete.map(s => s.name).join(', ');
 
-        if (window.confirm(`¿Estás seguro de que quieres borrar ${selectedScenarioIds.size} escenarios seleccionados?\n(${namesToDelete})`)) {
-          internalChangeRef.current = true; // Prevent marking unsaved during delete
+        if (window.confirm(`Are you sure you want to delete ${selectedScenarioIds.size} selected scenario(s)?\n(${namesToDelete})`)) {
+          internalChangeRef.current = true;
+          setIsLoading(true);
           let currentScenarioWasDeleted = false;
-          selectedScenarioIds.forEach(id => {
+          const deletePromises = Array.from(selectedScenarioIds).map(async (id) => {
             try {
-              localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${id}`);
+              await deleteScenario(id);
               if (currentScenarioIdInternal === id) {
                 currentScenarioWasDeleted = true;
               }
             } catch (error) {
                console.error(`Error deleting scenario ${id}:`, error);
-               alert(`Error al borrar el escenario con ID: ${id}`);
+               alert(`Error deleting scenario with ID: ${id}`);
             }
           });
 
-          const updatedList = getSavedScenarios();
-          setSavedScenarios(updatedList); // Update list state
+          await Promise.all(deletePromises);
+
           setSelectedScenarioIds(new Set()); // Clear selection
           onScenarioSaved(); // Notify App
+          await refreshScenarioList(); // Refresh list state
 
           if (currentScenarioWasDeleted) {
             console.log(`DEBUG: Deleted current scenario, loading new.`);
-            onLoadScenario(null); // Use the App's handler to load null
+            notifyAppToLoad(null); // Use the App's handler to load null
           }
+          setIsLoading(false);
           setTimeout(() => { internalChangeRef.current = false; }, 50);
         }
-      }, [selectedScenarioIds, savedScenarios, currentScenarioIdInternal, onLoadScenario, onScenarioSaved]); // *** RESTORED Dependencies ***
-      // --- End Multi-Select Handlers ---
+      }, [selectedScenarioIds, savedScenarios, currentScenarioIdInternal, notifyAppToLoad, onScenarioSaved, refreshScenarioList]);
 
-
-      // This function now primarily acts as a wrapper to check for unsaved changes before calling the App's load trigger
-      // *** FIX: Define handleLoadScenarioTrigger ***
+      // --- Load Trigger Handler (Checks Unsaved Changes) ---
       const handleLoadScenarioTrigger = useCallback((id: string | null) => {
-        if (hasUnsavedChanges) {
-          if (!window.confirm("Tienes cambios sin guardar. ¿Descartar cambios y cargar otro escenario?")) {
+        // Skip confirmation ONLY if it's a pristine new scenario (lastSavedState is null)
+        if (hasUnsavedChanges && lastSavedState !== null) {
+          if (!window.confirm("You have unsaved changes. Discard changes and load another scenario?")) {
             console.log("DEBUG: Load scenario cancelled due to unsaved changes.");
             return; // Abort load
           }
           console.log("DEBUG: User confirmed discarding changes for load.");
         }
         // Proceed with calling the App's load handler
-        onLoadScenario(id);
-      }, [onLoadScenario, hasUnsavedChanges]); // Depend on the prop function and unsaved flag
+        notifyAppToLoad(id);
+      }, [notifyAppToLoad, hasUnsavedChanges, lastSavedState]); // Add lastSavedState dependency
+
+      // --- Duplicate Scenario Handler ---
+      const handleDuplicateScenario = useCallback(async (idToDuplicate: string) => {
+        console.log(`DEBUG: Duplicating scenario ID: ${idToDuplicate}`);
+        internalChangeRef.current = true;
+        setIsLoading(true);
+
+        try {
+            const originalState = await loadScenario(idToDuplicate);
+            if (!originalState) {
+                throw new Error("Original scenario not found for duplication.");
+            }
+
+            const newId = generateNewScenarioId();
+            const newName = `${originalState.name} Copy`; // Simple copy naming
+
+            const newState: ScenarioState = {
+                ...originalState, // Copy nodes, edges, viewport, type
+                name: newName, // Set the new name
+            };
+
+            await saveScenario(newId, newState); // Save the duplicated scenario
+
+            console.log(`DEBUG: Scenario duplicated successfully. New ID: ${newId}, Name: ${newName}`);
+            onScenarioSaved(); // Notify parent
+            await refreshScenarioList(); // Refresh the list
+
+            // Ask user if they want to load the new duplicate
+            if (window.confirm(`Scenario duplicated as "${newName}". Load it now?`)) {
+                notifyAppToLoad(newId); // Trigger loading the new duplicate
+            }
+
+        } catch (error) {
+            console.error("Error duplicating scenario:", error);
+            alert(`Error duplicating scenario: ${error}`);
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => { internalChangeRef.current = false; }, 50);
+        }
+      }, [onScenarioSaved, refreshScenarioList, notifyAppToLoad]); // Dependencies
+
 
       const mapNodes = nodes.filter(node => (node.data.type === 'GS' || node.data.type === 'UE') && node.data.latitude !== undefined && node.data.longitude !== undefined);
 
-      // Component's JSX return - *** RESTORED ***
+      // --- Component's JSX return ---
       return (
         <div className="flex flex-col h-full text-white overflow-hidden">
           <ScenarioTopBar
@@ -332,19 +561,20 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
             onScenarioNameChange={handleScenarioNameChange}
             scenarioType={scenarioType}
             onScenarioTypeChange={handleScenarioTypeChangeInternal}
-            onSave={undefined /* handleSave */} // Pass undefined for now
-            onSaveAs={undefined /* handleSaveAs */} // Pass undefined for now
-            isLoading={isLoadingScenario}
-            onStartScenario={undefined /* triggerStartScenario */} // Pass undefined for now
+            onSave={handleSave} // Pass implemented handler
+            onSaveAs={handleSaveAs} // Pass implemented handler
+            isLoading={isLoading || isLoadingFromApp} // Combine loading states
+            onStartScenario={triggerStartScenario} // Pass implemented handler
             hasUnsavedChanges={hasUnsavedChanges}
           />
           <div className="flex flex-1 overflow-hidden">
             <ScenarioManagementSidebar
                 savedScenarios={savedScenarios}
                 selectedScenarioIds={selectedScenarioIds}
-                onLoadScenario={handleLoadScenarioTrigger} // *** FIX: Pass the defined handler ***
+                onLoadScenario={handleLoadScenarioTrigger} // Pass the trigger handler
                 onToggleSelection={handleToggleScenarioSelection}
                 onDeleteSelected={handleDeleteSelectedScenarios}
+                onDuplicateScenario={handleDuplicateScenario} // Pass duplicate handler
             />
             <div ref={reactFlowWrapperRef} className="flex flex-1 flex-col overflow-hidden relative" onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}>
                <div className="absolute inset-0 bg-albor-orange/10 border-2 border-dashed border-albor-orange pointer-events-none z-30 opacity-0 transition-opacity drag-over-target"> <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-albor-orange font-semibold">Drop Node Here</span> </div>
@@ -364,11 +594,31 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
                </div>
             </div>
             <div className="flex flex-col w-64 flex-shrink-0">
-                <div className="h-1/2 border-l border-b border-albor-bg-dark"> <NodeListSidebar /> </div>
-                <div className="h-1/2 border-l border-albor-bg-dark overflow-hidden"> <ConfigSidebar selectedNode={selectedNode} selectedEdge={selectedEdge} scenarioType={scenarioType} onNodeUpdate={undefined /* handleNodeUpdate */} onEdgeUpdate={undefined /* handleEdgeUpdate */} /> </div>
+                {/* Node List Sidebar */}
+                {/* *** Ensure parent div allows NodeListSidebar to fill width *** */}
+                <div className="border-l border-b border-albor-bg-dark h-1/2"> {/* Adjusted height */}
+                    <NodeListSidebar />
+                </div>
+                {/* Config Sidebar - Allow to take remaining height */}
+                <div className="flex-1 border-l border-albor-bg-dark overflow-hidden min-h-0"> {/* Adjusted height */}
+                    <ConfigSidebar
+                        selectedNode={selectedNode}
+                        selectedEdge={selectedEdge}
+                        scenarioType={scenarioType}
+                        onNodeUpdate={handleNodeUpdate} // Pass handler
+                        onEdgeUpdate={handleEdgeUpdate} // Pass handler
+                    />
+                </div>
             </div>
           </div>
-          {contextMenu && ( <CanvasContextMenu x={contextMenu.x} y={contextMenu.y} type={contextMenu.type} itemId={contextMenu.itemId} onClose={handleCloseContextMenu} onDelete={undefined /* handleDeleteItem */} canDeleteEdge={scenarioType === 'custom'} /> )}
+          {contextMenu && (
+            <CanvasContextMenu
+                x={contextMenu.x} y={contextMenu.y} type={contextMenu.type}
+                itemId={contextMenu.itemId} onClose={handleCloseContextMenu}
+                onDelete={handleDeleteItem} // Pass handler
+                canDeleteEdge={scenarioType === 'custom'}
+            />
+          )}
         </div>
       );
     };

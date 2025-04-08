@@ -9,8 +9,8 @@ import React from 'react';
       onScenarioNameChange: (newName: string) => void;
       scenarioType: ScenarioType;
       onScenarioTypeChange: (newType: ScenarioType) => void;
-      onSave: () => void;
-      onSaveAs: () => void; // Added prop
+      onSave: () => void; // Connect this
+      onSaveAs: () => void; // Connect this
       isLoading: boolean;
       onStartScenario: () => void;
       hasUnsavedChanges: boolean; // Added prop
@@ -21,7 +21,7 @@ import React from 'react';
       onScenarioNameChange,
       scenarioType,
       onScenarioTypeChange,
-      onSave,
+      onSave, // Receive handler
       onSaveAs, // Receive handler
       isLoading,
       onStartScenario,
@@ -47,7 +47,7 @@ import React from 'react';
                     value={scenarioName}
                     onChange={handleNameInputChange}
                     placeholder="Scenario Name"
-                    className={`bg-transparent border rounded px-2 py-1 text-sm text-albor-light-gray focus:outline-none focus:ring-1 focus:ring-albor-orange min-w-[150px] flex-shrink ${hasUnsavedChanges ? 'border-yellow-500' : 'border-albor-dark-gray'}`}
+                    className={`bg-transparent border rounded px-2 py-1 text-sm text-albor-light-gray focus:outline-none focus:ring-1 focus:ring-albor-orange min-w-[150px] flex-shrink ${hasUnsavedChanges ? 'border-yellow-500 ring-1 ring-yellow-500/50' : 'border-albor-dark-gray'}`} // Enhanced unsaved style
                 />
                 {hasUnsavedChanges && (
                     <span title="Unsaved Changes" className="absolute -top-1 -right-1 flex h-3 w-3">
@@ -67,19 +67,29 @@ import React from 'react';
 
           {/* Right Side Controls */}
           <div className="flex items-center space-x-2 flex-shrink-0">
-            <button onClick={onSave} className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-albor-bg-dark hover:bg-albor-bg-dark/70 text-albor-light-gray transition-colors relative" title="Save current scenario">
+            <button
+                onClick={onSave} // Use the passed handler
+                disabled={isLoading || !hasUnsavedChanges} // Disable if loading or no changes
+                className={`flex items-center space-x-1 px-2 py-1 rounded text-xs bg-albor-bg-dark hover:bg-albor-bg-dark/70 text-albor-light-gray transition-colors relative disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={hasUnsavedChanges ? "Save current scenario" : "No changes to save"}
+            >
               <Save size={14} />
               <span>Save</span>
               {hasUnsavedChanges && ( <span className="absolute -top-1 -right-1 block h-2 w-2 rounded-full bg-yellow-500 ring-1 ring-albor-bg-dark"></span> )}
             </button>
-            <button onClick={onSaveAs} className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-albor-bg-dark hover:bg-albor-bg-dark/70 text-albor-light-gray transition-colors" title="Save as new scenario">
+            <button
+                onClick={onSaveAs} // Use the passed handler
+                disabled={isLoading} // Disable if loading
+                className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-albor-bg-dark hover:bg-albor-bg-dark/70 text-albor-light-gray transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Save as new scenario"
+            >
               <SaveAll size={14} />
               <span>Save As...</span>
             </button>
-            <button className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-albor-bg-dark hover:bg-albor-bg-dark/70 text-albor-light-gray transition-colors"> <Upload size={14} /> <span>Export</span> </button>
+            {/* <button className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-albor-bg-dark hover:bg-albor-bg-dark/70 text-albor-light-gray transition-colors"> <Upload size={14} /> <span>Export</span> </button> */}
             <button onClick={onStartScenario} disabled={isLoading} className={`flex items-center space-x-1 px-3 py-1 rounded text-xs bg-albor-orange hover:bg-albor-orange/80 text-white font-semibold transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}>
               {isLoading ? ( <Loader2 size={14} className="animate-spin" /> ) : ( <Play size={14} /> )}
-              <span>{isLoading ? 'Starting...' : 'Start Sim'}</span>
+              <span>{isLoading ? 'Processing...' : 'Start Sim'}</span>
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-    import { Settings } from 'lucide-react';
+    import { Settings, MousePointerSquare } from 'lucide-react'; // Import MousePointerSquare
     import { ScenarioNode, ScenarioEdge, CustomNodeData, CustomEdgeData, ScenarioType } from './types'; // Import types
 
     // Import the specific panels - Ensure the import path and name are correct
@@ -44,17 +44,15 @@ import React from 'react';
             />
           )}
 
-          {/* Default view when nothing is selected */}
+          {/* Default view when nothing is selected - IMPROVED */}
           {!showNodeConfig && !showEdgeConfig && (
-            <>
-              <div className="flex items-center space-x-2 mb-4 pb-2 border-b border-albor-bg-dark flex-shrink-0">
-                <Settings size={16} className="text-albor-orange"/>
-                <h3 className="text-sm font-semibold text-albor-light-gray">Configuration</h3>
-              </div>
-              <p className="text-xs text-albor-dark-gray italic text-center mt-4 flex-1 flex items-center justify-center">
-                Select a node{scenarioType === 'custom' ? ' or edge' : ''} on the canvas to configure its properties.
-              </p>
-            </>
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                <MousePointerSquare size={32} className="text-albor-dark-gray mb-3"/>
+                <h3 className="text-sm font-semibold text-albor-light-gray mb-1">Configuration Panel</h3>
+                <p className="text-xs text-albor-dark-gray">
+                    Select a component on the canvas (node{scenarioType === 'custom' ? ' or link' : ''}) to view and edit its properties here.
+                </p>
+            </div>
           )}
         </div>
       );

@@ -76,7 +76,7 @@
           .react-flow__controls button:last-of-type { border-bottom: 1px solid theme('colors.albor-dark-gray/50'); border-bottom-left-radius: theme('borderRadius.md'); border-bottom-right-radius: theme('borderRadius.md'); }
           .react-flow__controls button:first-of-type { border-top-left-radius: theme('borderRadius.md'); border-top-right-radius: theme('borderRadius.md'); }
 
-          /* Style React Flow MiniMap - Enhanced Styling */
+          /* Style React Flow MiniMap - Enhanced Styling V2 */
           .react-flow__minimap.albor-minimap {
               background-color: theme('colors.albor-bg-dark/90'); /* More opaque */
               border: 1px solid theme('colors.albor-dark-gray/60'); /* Stronger border */
@@ -84,28 +84,30 @@
               box-shadow: 0 4px 12px rgba(0,0,0,0.4); /* Stronger shadow */
           }
           .react-flow__minimap-mask.albor-minimap-mask {
-              fill: theme('colors.albor-deep-space/75'); /* Darker, more opaque mask */
-              stroke: theme('colors.albor-orange/70'); /* Brighter orange stroke */
-              stroke-width: 1.5px;
+              /* Lighter, more transparent mask */
+              fill: var(--color-hologram-blue-dark);
+              fill-opacity: 0.15; /* Make fill more transparent */
+              stroke: var(--color-hologram-blue); /* Use hologram blue for stroke */
+              stroke-width: 1px; /* Thinner stroke */
+              stroke-opacity: 0.6; /* Slightly transparent stroke */
           }
           .react-flow__minimap-node.albor-minimap-node {
-              fill: theme('colors.albor-light-gray'); /* Light nodes for contrast */
-              stroke: theme('colors.albor-bg-dark/50'); /* Add subtle border */
-              stroke-width: 0.5px; /* Use pixels */
-              opacity: 0.9; /* More opaque */
+              /* Use theme colors for nodes */
+              fill: var(--color-albor-dark-gray); /* Darker nodes */
+              stroke: none; /* Remove stroke by default */
+              opacity: 0.7; /* Slightly transparent */
               shape-rendering: crispEdges;
-              transition: fill 0.1s ease-in-out, opacity 0.1s ease-in-out, stroke 0.1s ease-in-out;
+              transition: fill 0.1s ease-in-out, opacity 0.1s ease-in-out;
           }
           .react-flow__minimap-node.albor-minimap-node:hover {
-              fill: theme('colors.albor-orange');
-              stroke: theme('colors.albor-orange');
+              fill: var(--color-albor-orange); /* Orange on hover */
               opacity: 1;
           }
           .react-flow__minimap-node.albor-minimap-node.selected {
-               fill: theme('colors.albor-orange');
+               fill: var(--color-albor-orange); /* Orange when selected */
                opacity: 1;
-               stroke: theme('colors.white'); /* White border for selected */
-               stroke-width: 1.5px; /* Thicker border for selected */
+               /* Optional: Add a subtle glow or different effect for selected */
+               /* filter: drop-shadow(0 0 1px var(--color-albor-orange)); */
           }
 
           .react-flow__background { background-color: theme('colors.albor-deep-space'); }

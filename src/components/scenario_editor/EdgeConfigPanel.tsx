@@ -47,8 +47,8 @@ import React, { useState, useEffect, useCallback } from 'react';
           {/* Header */}
           <div className="flex items-center space-x-2 mb-3 pb-2 border-b border-albor-bg-dark flex-shrink-0">
             <Link size={16} className="text-albor-orange"/>
-            <h3 className="text-sm font-semibold text-albor-light-gray truncate" title={`Edge: ${selectedEdge.id}`}>
-              Edge Configuration
+            <h3 className="text-sm font-semibold text-albor-light-gray truncate" title={`Link: ${selectedEdge.id}`}>
+              Link Configuration
             </h3>
           </div>
 

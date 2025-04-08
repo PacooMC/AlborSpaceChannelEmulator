@@ -7,32 +7,50 @@ import React, { useState, useCallback, useEffect } from 'react';
     import MonitoringView from './components/views/MonitoringView';
     import SystemManagementView from './components/views/SystemManagementView';
     import SettingsView from './components/views/SettingsView';
-    import { initialRunningScenarios } from './content/scenarios';
-    import type { Scenario, ScenarioStatus } from './content/scenarios';
-    // Removed imports related to saved scenarios management
+    import { initialRunningScenarios } from './content/scenarios'; // Keep for running state simulation
+    import type { Scenario, ScenarioStatus } from './content/scenarios'; // Keep type
+    import { getScenarioList, SavedScenarioInfo } from './content/scenarioStore'; // Import store functions
 
     type ViewName = 'dashboard' | 'scenarios' | 'monitoring' | 'system' | 'settings';
 
     function App() {
       const [activeView, setActiveView] = useState<ViewName>('dashboard');
+      // Running scenarios state remains for simulation/monitoring view context
       const [runningScenarios, setRunningScenarios] = useState<Scenario[]>(
           initialRunningScenarios.filter(s => s.id !== 'global-overview')
       );
       const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null); // For dashboard/monitoring context
-      const [isLoadingScenario, setIsLoadingScenario] = useState<boolean>(false);
+      const [isLoading, setIsLoading] = useState<boolean>(false); // General loading state
       const [editorScenarioId, setEditorScenarioId] = useState<string | null>(null); // ID of scenario to load in editor
+      const [savedScenarioListForSidebar, setSavedScenarioListForSidebar] = useState<SavedScenarioInfo[]>([]); // List for the main sidebar (if needed)
 
-      // Removed savedScenariosList state and useEffect
+      // Fetch saved scenarios for the main sidebar (if it needs it)
+      const refreshSavedListForSidebar = useCallback(async () => {
+          try {
+              const list = await getScenarioList();
+              setSavedScenarioListForSidebar(list);
+          } catch (error) {
+              console.error("App: Error fetching scenario list for sidebar:", error);
+          }
+      }, []);
+
+      useEffect(() => {
+          refreshSavedListForSidebar();
+      }, [refreshSavedListForSidebar]);
+
 
       const selectedScenario = runningScenarios.find(s => s.id === selectedScenarioId) || null;
 
       const getHeaderTitle = () => {
         switch (activeView) {
             case 'dashboard':
-                return selectedScenario?.name || "Global System Overview";
+                // Find name from running list OR potentially saved list if not running?
+                const dashScenario = runningScenarios.find(s => s.id === selectedScenarioId)
+                                    // || savedScenarioListForSidebar.find(s => s.id === selectedScenarioId); // Optional: Check saved list too
+                return dashScenario?.name || "Global System Overview";
             case 'scenarios':
-                // Title might need adjustment if name isn't readily available here
-                return editorScenarioId ? `Editing Scenario` : "Scenario Editor";
+                // Title is handled within the editor now based on loaded scenario name
+                return "Scenario Editor";
             case 'monitoring':
                 const monitoredScenario = runningScenarios.find(s => s.id === selectedScenarioId);
                 return monitoredScenario ? `Monitoring: ${monitoredScenario.name}` : "Global Monitoring";
@@ -45,36 +63,51 @@ import React, { useState, useCallback, useEffect } from 'react';
         }
       };
 
-      const handleStartScenario = useCallback((id: string, name: string) => {
-        if (!id || isLoadingScenario) return;
-        console.log(`Attempting to start scenario: ${name} (${id})`);
-        setIsLoadingScenario(true);
-        setTimeout(() => {
-          setRunningScenarios(prevScenarios => {
-            if (prevScenarios.some(s => s.id === id)) {
-              console.log(`Scenario ${id} is already running.`);
-              return prevScenarios;
-            }
-            const newScenario: Scenario = { id, name, status: 'running' };
-            console.log(`Adding scenario ${id} to running list.`);
-            return [...prevScenarios, newScenario];
-          });
-          setSelectedScenarioId(id); // Set context for monitoring view
-          setActiveView('monitoring'); // Switch view
-          setIsLoadingScenario(false);
-          console.log(`Scenario ${id} started, switching to monitoring view.`);
-        }, 1500);
-      }, [isLoadingScenario]);
+      // --- Simulation Start Logic ---
+      const handleStartScenario = useCallback(async (id: string, name: string) => {
+        if (!id || isLoading) return;
+        console.log(`App: Attempting to start scenario: ${name} (${id})`);
+        setIsLoading(true);
 
-      // This function now ONLY tells the App which scenario ID the editor should load
-      const handleLoadScenario = useCallback((id: string | null) => {
-        console.log(`Requesting to load scenario ${id ?? 'new'} into editor.`);
+        // Simulate loading/preparation time
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        setRunningScenarios(prevScenarios => {
+          if (prevScenarios.some(s => s.id === id)) {
+            console.log(`App: Scenario ${id} is already running.`);
+            // Optionally update status if needed, e.g., from paused to running
+            return prevScenarios.map(s => s.id === id ? { ...s, status: 'running' } : s);
+          }
+          // Add the new scenario to the running list
+          const newScenario: Scenario = { id, name, status: 'running' };
+          console.log(`App: Adding scenario ${id} to running list.`);
+          return [...prevScenarios, newScenario];
+        });
+
+        setSelectedScenarioId(id); // Set context for monitoring/dashboard view
+        setActiveView('monitoring'); // Switch view to monitoring after starting
+        setIsLoading(false);
+        console.log(`App: Scenario ${id} started, switching to monitoring view.`);
+
+      }, [isLoading]);
+
+      // --- Scenario Load Trigger (Called by Editor Sidebar) ---
+      // This function now ONLY tells the App which scenario ID the editor should load/display.
+      // The actual loading logic is inside ScenarioEditorContent.
+      const handleLoadScenarioTrigger = useCallback((id: string | null) => {
+        console.log(`App: Requesting editor to load scenario ID: ${id ?? 'new'}`);
         setEditorScenarioId(id); // Update the ID for the editor view
         setActiveView('scenarios'); // Ensure the editor view is active
-        setSelectedScenarioId(null); // Deselect any active scenario context
+        setSelectedScenarioId(null); // Deselect any active dashboard/monitoring context
       }, []);
 
-      // Removed handleDeleteScenario - now handled within ScenarioEditorContent
+      // --- Callback for when Editor Saves/Deletes ---
+      // This allows the App to refresh lists if necessary (e.g., for the main sidebar)
+      const handleScenarioEditorAction = useCallback(() => {
+          console.log("App: Notified by editor of save/delete action.");
+          refreshSavedListForSidebar(); // Refresh the list used by the main sidebar
+      }, [refreshSavedListForSidebar]);
+
 
       const renderView = () => {
         switch (activeView) {
@@ -84,13 +117,14 @@ import React, { useState, useCallback, useEffect } from 'react';
             return (
               <ScenarioEditorView
                 scenarioIdToLoad={editorScenarioId} // Pass the ID to load
-                isLoadingScenario={isLoadingScenario}
+                isLoadingScenario={isLoading} // Pass App's loading state
                 onStartScenario={handleStartScenario} // Pass start handler
-                onLoadScenario={handleLoadScenario} // Pass load trigger handler
-                onScenarioSaved={() => { /* App notified, can update global state if needed */ }}
+                onLoadScenario={handleLoadScenarioTrigger} // Pass load trigger handler
+                onScenarioSaved={handleScenarioEditorAction} // Pass notification handler
               />
             );
           case 'monitoring':
+            // Pass necessary data for the selected running scenario
             return <MonitoringView /* selectedScenarioId={selectedScenarioId} scenario={selectedScenario} */ />;
           case 'system':
             return <SystemManagementView /* selectedScenarioId={selectedScenarioId} scenario={selectedScenario} */ />;
@@ -105,14 +139,16 @@ import React, { useState, useCallback, useEffect } from 'react';
         <div className="flex flex-col h-screen text-albor-light-gray font-sans overflow-hidden">
           <Header selectedScenarioName={getHeaderTitle()} />
           <div className="flex flex-1 overflow-hidden">
-            {/* Pass only necessary props to the main Sidebar */}
+            {/* Main Sidebar might still need the saved list for quick loading */}
             <Sidebar
               activeView={activeView}
               setActiveView={setActiveView}
               runningScenarios={runningScenarios}
               selectedScenarioId={selectedScenarioId}
               setSelectedScenarioId={setSelectedScenarioId}
-              // Removed savedScenarios, onLoadScenario, onDeleteScenario props
+              // Pass saved list and load trigger if sidebar needs them
+              savedScenarios={savedScenarioListForSidebar}
+              onLoadScenario={handleLoadScenarioTrigger}
             />
             <MainContentArea>
               {renderView()}
