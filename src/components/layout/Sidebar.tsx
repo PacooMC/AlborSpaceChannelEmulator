@@ -11,9 +11,7 @@ type SidebarProps = {
   activeView: ViewName;
   setActiveView: (viewName: ViewName) => void; // Renamed back for clarity, App handles logic
   runningScenarios: Scenario[]; // This now includes status
-  // selectedScenarioIdForContext: string | null; // Removed
-  // setSelectedScenarioIdForContext: (id: string | null) => void; // Removed
-  onNavigateToMonitor: (id: string) => void; // *** NEW: Handler to navigate to monitor view ***
+  onNavigateToMonitor: (id: string) => void; // Handler to navigate to monitor view
   savedScenarios: SavedScenarioInfo[];
   onLoadScenario: (id: string | null) => void; // Function to trigger loading in App/Editor
 };
@@ -54,7 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-64 bg-albor-bg-dark/80 backdrop-blur-sm p-4 border-r border-albor-bg-dark/50 flex flex-col overflow-y-auto">
       {/* Main Navigation */}
-      <nav className="space-y-1 mb-6 flex-shrink-0">
+      <nav className="space-y-1 mb-4 flex-shrink-0"> {/* Reduced bottom margin */}
         {mainNavItems.map((item) => (
           <button
             key={item.name}
@@ -80,6 +78,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </nav>
 
+      {/* Divider */}
+      <hr className="border-t border-albor-bg-dark/50 my-3 flex-shrink-0" />
+
       {/* Running/Active Scenarios Section */}
       <div className="space-y-1 mb-4 flex-shrink-0">
          <h3 className="text-xs font-semibold text-albor-dark-gray uppercase tracking-wider mb-2 px-1">Active Scenarios</h3>
@@ -87,19 +88,26 @@ const Sidebar: React.FC<SidebarProps> = ({
          {runningScenarios.filter(s => s.status !== 'stopped').length > 0 ? (
             runningScenarios.filter(s => s.status !== 'stopped').map((scenario) => {
               const statusInfo = getStatusInfo(scenario.status); // Get icon, color, title
+              // Check if this scenario is the one being monitored
+              // Note: This requires knowing which scenario is currently in the MonitoringView.
+              // Since Sidebar doesn't know this directly, we'll use activeView === 'monitoring'
+              // and potentially compare with a hypothetical 'monitoringTargetId' if passed down.
+              // For now, let's just style the hover state more distinctly.
+              const isBeingMonitored = activeView === 'monitoring'; // Simplified check
+
               return (
                 <button
                   key={scenario.id}
-                  // *** CHANGE: Call onNavigateToMonitor on click ***
                   onClick={() => onNavigateToMonitor(scenario.id)}
-                  className={`flex items-center justify-between w-full p-2 rounded cursor-pointer group transition-colors duration-150 ease-in-out text-left text-albor-light-gray hover:bg-albor-bg-dark/60`}
-                   title={`Monitor Scenario: ${scenario.name} (${statusInfo.title})`} // Updated tooltip
+                  className={`flex items-center justify-between w-full p-1.5 rounded cursor-pointer group transition-colors duration-150 ease-in-out text-left text-albor-light-gray hover:bg-albor-bg-dark/60 border border-transparent hover:border-albor-dark-gray`} // Added border on hover
+                   title={`Monitor Scenario: ${scenario.name} (${statusInfo.title})`}
                 >
                   <div className="flex items-center space-x-2 overflow-hidden">
-                    {/* Use statusInfo for icon and color */}
                     <statusInfo.icon size={14} className={`${statusInfo.color} flex-shrink-0`} />
                     <span className="text-xs truncate">{scenario.name}</span>
                   </div>
+                  {/* Optional: Add an indicator if it's being monitored */}
+                  {/* {isBeingMonitored && <Activity size={12} className="text-albor-orange animate-pulse" />} */}
                 </button>
               );
             })
@@ -108,8 +116,11 @@ const Sidebar: React.FC<SidebarProps> = ({
          )}
       </div>
 
-      {/* Saved Scenarios Panel */}
-      <div className="flex-1 flex flex-col min-h-0">
+      {/* Divider */}
+      <hr className="border-t-2 border-albor-bg-dark/70 my-4 flex-shrink-0" /> {/* Thicker divider */}
+
+      {/* Saved Scenarios Panel - Wrapped for styling */}
+      <div className="flex-1 flex flex-col min-h-0 border border-albor-bg-dark/50 rounded-md p-2 bg-albor-deep-space/30">
           <SavedScenariosPanel
               savedScenarios={savedScenarios}
               selectedScenarioIds={new Set()} // Selection managed in editor view now
