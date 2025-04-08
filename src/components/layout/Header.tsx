@@ -1,38 +1,32 @@
-import React from 'react'
-import { Upload, Plus } from 'lucide-react' // Import Plus
+import React from 'react';
+import { Plus } from 'lucide-react'; // Keep Plus for potential future actions
 
-// Update Header props to accept the dynamic title
+// Simplified Header Props - Scenario selection is removed
 interface HeaderProps {
-  selectedScenarioName?: string; // Make it optional or provide a default
+  // We might still want the App's active view name or similar later
+  // For now, keep it minimal
 }
 
-const Header: React.FC<HeaderProps> = ({ selectedScenarioName = "Channel Emulator" }) => {
+const Header: React.FC<HeaderProps> = ({}) => {
+
   return (
-    // Use a semi-transparent dark background, slightly lighter border
-    <header className="flex items-center justify-between p-4 border-b border-albor-bg-dark/50 bg-albor-bg-dark/70 backdrop-blur-sm z-10 flex-shrink-0"> {/* Added flex-shrink-0 */}
-      <div className="flex items-center space-x-4">
-        {/* Logo Placeholder - Use Albor Orange */}
-        <div className="w-8 h-8 bg-albor-orange rounded-full shadow-glow-orange flex-shrink-0"></div> {/* Added glow */}
-        {/* Apply wide tracking and color mix */}
-        <span className="text-xl font-bold text-white tracking-widest-lg flex-shrink-0"> {/* Wider tracking */}
-          ALBOR
-          <span className="font-semibold text-albor-dark-gray opacity-80">SPACE</span>
+    <header className="flex items-center justify-between p-3 border-b border-albor-bg-dark/50 bg-albor-bg-dark/70 backdrop-blur-sm z-10 flex-shrink-0">
+      {/* Left Side: Logo & Title */}
+      <div className="flex items-center space-x-4 flex-shrink-0">
+        <div className="w-8 h-8 bg-albor-orange rounded-full shadow-glow-orange flex-shrink-0"></div>
+        <span className="text-xl font-bold text-white tracking-widest-lg flex-shrink-0">
+          ALBOR<span className="font-semibold text-albor-dark-gray opacity-80">SPACE</span>
         </span>
-        {/* Display the dynamic title passed via props */}
-        <span className="text-albor-dark-gray ml-6 text-sm truncate" title={selectedScenarioName}>
-          {selectedScenarioName}
-        </span>
+        {/* Placeholder for potential view title if needed later */}
+        {/* <span className="text-albor-dark-gray ml-6 text-sm truncate">View Title</span> */}
       </div>
-      <nav className="flex items-center space-x-6 text-sm text-albor-light-gray flex-shrink-0">
-        {/* Buttons with softer hover */}
-        <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-albor-bg-dark/50">New Scenario</button>
-        <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-albor-bg-dark/50">Load Config</button> {/* Shortened */}
-        <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-albor-bg-dark/50">Start Sim</button> {/* Shortened */}
-        <button className="flex items-center hover:text-white transition-colors px-2 py-1 rounded hover:bg-albor-bg-dark/50">
-          <Upload size={16} className="mr-1" />
-          Export
-        </button>
-        {/* Use Plus icon, styled */}
+
+      {/* Center: Removed Scenario Selector */}
+      <div className="flex-1"></div>
+
+      {/* Right Side: Minimal Actions */}
+      <nav className="flex items-center space-x-4 text-sm text-albor-light-gray flex-shrink-0">
+        {/* Keep only the Plus button for now, representing 'Add' or 'More' */}
         <button className="p-1.5 rounded-full border border-albor-dark-gray text-albor-dark-gray hover:text-albor-light-gray hover:border-albor-light-gray transition-colors">
           <Plus size={16} />
         </button>
@@ -41,4 +35,4 @@ const Header: React.FC<HeaderProps> = ({ selectedScenarioName = "Channel Emulato
   )
 }
 
-export default Header
+export default Header;
