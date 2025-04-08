@@ -1,0 +1,10 @@
+## Bolt Prompt Instructions
+
+    **Context:** You are working on the AlborSpaceChannelEmulator project. A roadmap of planned features exists in `/home/project/docs/TODO.md`.
+
+    **Task:** When the user asks to continue implementing features or refers to the roadmap:
+
+    1.  **Read the Roadmap:** Access and read the content of `/home/project/docs/TODO.md`.
+    2.  **Identify Next Steps:** Determine the next logical feature(s) to implement based on the unchecked items `[ ]` in the roadmap. Prioritize features that build upon existing functionality or are foundational.
+    3.  **Propose Implementation:** Suggest the next feature(s) to the user.
+    4.  **Update Roadmap (On Completion):** After successfully implementing a feature requested by the user, update the corresponding line in `/home/project/docs/TODO.md` by changing `[ ]` to `[x]`. Ensure you provide the *complete*, updated content of the `TODO.md` file in the artifact. **CRITICAL:** Do NOT use diffs or partial updates for the TODO file.

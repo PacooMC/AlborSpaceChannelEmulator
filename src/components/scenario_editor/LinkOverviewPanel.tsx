@@ -1,47 +1,44 @@
 import React from 'react';
-            import { ArrowRight, Wifi, AlertTriangle, Info } from 'lucide-react';
-            import { ScenarioEdge, ScenarioNode, ScenarioType } from './types'; // Import React Flow compatible types & ScenarioType
+            import { ArrowRight, Wifi, AlertTriangle, Info, Link2Off } from 'lucide-react'; // Changed LinkOff to Link2Off
+            import { ScenarioEdge, ScenarioNode, ScenarioType } from './types';
 
             interface LinkOverviewPanelProps {
-              links: ScenarioEdge[]; // Use ScenarioEdge type
-              nodes: ScenarioNode[]; // Use ScenarioNode type
-              scenarioType: ScenarioType; // Add scenarioType prop
+              links: ScenarioEdge[];
+              nodes: ScenarioNode[];
+              scenarioType: ScenarioType;
             }
 
             const LinkOverviewPanel: React.FC<LinkOverviewPanelProps> = ({ links = [], nodes = [], scenarioType }) => {
 
               const getNodeName = (nodeId: string): string => {
-                // Access name via node.data.name
                 return nodes?.find(n => n.id === nodeId)?.data?.name || 'Unknown';
               };
 
               // Dummy data for placeholder properties (replace later with actual edge data)
               const getLinkDetails = (link: ScenarioEdge) => {
-                // Access edge data via link.data (if defined in CustomEdgeData)
-                // For now, use dummy data based on ID
                 const hash = link.id.charCodeAt(link.id.length - 1) % 3;
                 const snrBase = link.id.charCodeAt(0) % 15 + 5;
-
                 return {
-                    freq: link.data?.frequency || 'N/A', // Example: Access data if available
+                    freq: link.data?.frequency || 'N/A',
                     bw: link.data?.bandwidth || 'N/A',
                     model: link.data?.channelModel || 'N/A',
-                    snr: snrBase + Math.random() * 5, // Keep dummy SNR for now
-                    status: ['ok', 'warning', 'error'][hash] as 'ok' | 'warning' | 'error', // Keep dummy status
+                    snr: snrBase + Math.random() * 5,
+                    status: ['ok', 'warning', 'error'][hash] as 'ok' | 'warning' | 'error',
                 };
               }
 
-
               return (
-                // Removed fixed height, let flexbox handle it
                 <div className="bg-albor-bg-dark/50 p-2 flex flex-col overflow-hidden">
                   <h4 className="text-sm font-semibold text-albor-light-gray mb-1 flex-shrink-0">Link Overview</h4>
-                  <div className="overflow-auto flex-1 -mr-2 pr-2"> {/* Allow scrolling */}
+                  <div className="overflow-auto flex-1 -mr-2 pr-2">
                     {scenarioType === 'realistic' ? (
                         // Realistic Mode Message
-                        <div className="flex items-center justify-center h-full text-center text-albor-dark-gray italic text-xs p-4">
-                            <Info size={14} className="mr-1.5 flex-shrink-0"/>
-                            Links are automatically calculated based on orbits and positions in Realistic mode.
+                        <div className="flex flex-col items-center justify-center h-full text-center text-albor-dark-gray text-xs p-4 space-y-2">
+                            {/* Changed LinkOff to Link2Off */}
+                            <Link2Off size={24} className="mb-1 opacity-50"/>
+                            <p className="font-semibold">Links Calculated Automatically</p>
+                            <p>In Realistic mode, links are determined by satellite orbits, ground positions, and line-of-sight calculations during simulation.</p>
+                            <p className="italic">(Manual link creation is disabled)</p>
                         </div>
                     ) : (
                         // Custom Mode Table
@@ -56,12 +53,9 @@ import React from 'react';
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-albor-bg-dark/50">
-                            {/* Iterate over React Flow edges */}
                             {(links || []).map(link => {
-                              // React Flow edges have 'source' and 'target' properties
                               if (!link || !link.id || !link.source || !link.target) return null;
                               const details = getLinkDetails(link);
-                              // Use link.source and link.target for node IDs
                               const sourceName = getNodeName(link.source);
                               const targetName = getNodeName(link.target);
                               return (

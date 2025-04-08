@@ -32,12 +32,12 @@ import type { Node, Edge, Viewport } from 'reactflow'; // Import Viewport
     }
     export type ScenarioNode = Node<CustomNodeData>; // Use Node<T> for typed data
 
-    // Extend React Flow's Edge type if needed (optional for now)
+    // Extend React Flow's Edge type
     export interface CustomEdgeData {
-      // Add link-specific properties later
+      // Add link-specific properties
       channelModel?: string;
-      frequency?: number;
-      bandwidth?: number;
+      frequency?: string; // Use string for now to allow units like 'GHz'
+      bandwidth?: string; // Use string for now to allow units like 'MHz'
       // Add more...
     }
     export type ScenarioEdge = Edge<CustomEdgeData>; // Use Edge<T> for typed data
