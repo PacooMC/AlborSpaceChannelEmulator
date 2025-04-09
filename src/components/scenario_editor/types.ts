@@ -17,7 +17,14 @@ import type { Node, Edge, Viewport } from 'reactflow'; // Import Viewport
         // --- Movement Parameter Interfaces ---
         export interface BaseMovementParams {
           speedKmh?: number; // Speed in km/h (used by LINEAR, potentially calculated for CIRCULAR_PATH)
+          // *** ADDED: Common position fields for STATIC ***
+          latitude?: number;
+          longitude?: number;
+          altitude?: number; // Altitude (m) above sea level
         }
+
+        // *** ADDED: Specific interface for STATIC (inherits BaseMovementParams) ***
+        export interface StaticParams extends BaseMovementParams {}
 
         export interface LinearMovementParams extends BaseMovementParams {
           angleDegrees?: number; // Optional: Direction angle (0-360) from current position
@@ -42,7 +49,7 @@ import type { Node, Edge, Viewport } from 'reactflow'; // Import Viewport
 
         // Union type for movement parameters (Simplified)
         export type MovementParameters =
-          | BaseMovementParams // For STATIC
+          | StaticParams // Use the specific StaticParams type
           | LinearMovementParams
           | CircularPathParams; // Updated
 
@@ -64,9 +71,9 @@ import type { Node, Edge, Viewport } from 'reactflow'; // Import Viewport
           // --- Realistic Scenario Data ---
           tle?: string; // Two-Line Element set data (for SAT)
           keplerian?: KeplerianElements; // Keplerian elements object (for SAT)
-          latitude?: number; // For GS/UE
-          longitude?: number; // For GS/UE
-          altitude?: number; // For GS/UE (optional, meters or km ASL)
+          latitude?: number; // For GS/UE (also used by STATIC movement)
+          longitude?: number; // For GS/UE (also used by STATIC movement)
+          altitude?: number; // For GS/UE (optional, meters or km ASL) (also used by STATIC movement)
           // --- Custom Scenario Data ---
           movementPattern?: MovementPatternType; // Type of movement (Simplified)
           movementParams?: MovementParameters; // Parameters for the movement (Simplified)

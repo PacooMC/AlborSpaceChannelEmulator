@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-        import { X, Move, Save, RefreshCw, Info, Repeat, CornerDownLeft } from 'lucide-react'; // Added Repeat, CornerDownLeft
+        import { X, Move, Save, RefreshCw, Info, Repeat, CornerDownLeft, MapPin } from 'lucide-react'; // Added MapPin
         // Import simplified types
-        import { NodeType, MovementPatternType, MovementParameters, LinearMovementParams, CircularPathParams, PathBehavior } from './types'; // Added PathBehavior
+        import { NodeType, MovementPatternType, MovementParameters, LinearMovementParams, CircularPathParams, PathBehavior, StaticParams } from './types'; // Added StaticParams
         // --- RE-IMPORT FlatMapPathEditor ---
         import FlatMapPathEditor from './FlatMapPathEditor';
 
@@ -114,9 +114,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
             const newPattern = e.target.value as MovementPatternType;
             setPattern(newPattern);
             // Reset params, preserving speed if applicable (only for LINEAR now)
+            // Preserve lat/lon if switching TO static
             let newParams: MovementParameters = {};
             if (newPattern === 'LINEAR') {
                 newParams.speedKmh = params.speedKmh;
+            } else if (newPattern === 'STATIC') {
+                newParams.latitude = params.latitude;
+                newParams.longitude = params.longitude;
+                newParams.altitude = params.altitude; // Keep altitude too
             }
             // Set default circular path params if switching to CIRCULAR_PATH
             if (newPattern === 'CIRCULAR_PATH') {
@@ -125,12 +130,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
             setParams(newParams);
           };
 
-          const handleParamChange = (paramKey: keyof MovementParameters | keyof LinearMovementParams | keyof CircularPathParams, value: string | number | boolean | PathBehavior | undefined) => { // Added PathBehavior
+          const handleParamChange = (paramKey: keyof MovementParameters | keyof LinearMovementParams | keyof CircularPathParams | keyof StaticParams, value: string | number | boolean | PathBehavior | undefined) => { // Added StaticParams keys
              let processedValue = value;
              // Convert numeric fields
-             const numericKeys: (keyof MovementParameters | keyof CircularPathParams | keyof LinearMovementParams)[] = [
+             const numericKeys: (keyof MovementParameters | keyof CircularPathParams | keyof LinearMovementParams | keyof StaticParams)[] = [
                  'speedKmh', 'angleDegrees', 'altitudeKm',
-                 'startLon', 'startLat', 'endLon', 'endLat' // Add geographic coords
+                 'startLon', 'startLat', 'endLon', 'endLat',
+                 'latitude', 'longitude', 'altitude' // Added static position keys
              ];
              if (typeof value === 'string' && numericKeys.includes(paramKey as any)) {
                  processedValue = value === '' ? undefined : parseFloat(value);
@@ -221,8 +227,32 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
                         {/* *** UPDATED: Use display name helper *** */}
                         <h3 className="text-sm font-semibold text-albor-light-gray mb-3">Parameters for: <span className="text-albor-orange">{getPatternDisplayName(pattern)}</span></h3>
 
+                        {/* Parameters for STATIC */}
                         {pattern === 'STATIC' && (
-                            <p className="text-sm text-albor-dark-gray italic">No parameters needed for static nodes.</p>
+                            <div className="space-y-3">
+                                <p className="text-sm text-albor-dark-gray flex items-center">
+                                    Set the fixed geographic position of the node.
+                                    <InfoTooltip text="The node will remain at this location. Altitude is relative to the Earth's surface." />
+                                </p>
+                                {/* --- ADDED MAP EDITOR for STATIC --- */}
+                                <FlatMapPathEditor
+                                    mode="single" // Use single point mode
+                                    startPoint={(params as StaticParams).longitude !== undefined && (params as StaticParams).latitude !== undefined ? { lon: (params as StaticParams).longitude!, lat: (params as StaticParams).latitude! } : null}
+                                    onPointSet={(type, point) => { // Type is always 'start' in single mode, but we ignore it
+                                        handleParamChange('longitude', point.lon);
+                                        handleParamChange('latitude', point.lat);
+                                    }}
+                                    mapHeight={200}
+                                    mapWidth={400}
+                                    projectionScale={60}
+                                />
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-3">
+                                    <ModalConfigInput id="modalMoveLatStatic" label="Latitude (°)" value={(params as StaticParams).latitude} onChange={(val) => handleParamChange('latitude', val)} type="number" step="any" placeholder="-90 to 90"/>
+                                    <ModalConfigInput id="modalMoveLonStatic" label="Longitude (°)" value={(params as StaticParams).longitude} onChange={(val) => handleParamChange('longitude', val)} type="number" step="any" placeholder="-180 to 180"/>
+                                    <ModalConfigInput id="modalMoveAltStatic" label="Altitude (m, optional)" value={(params as StaticParams).altitude} onChange={(val) => handleParamChange('altitude', val)} type="number" step="any" placeholder="Above sea level"/>
+                                </div>
+                                <p className="text-xs text-albor-dark-gray italic">Note: This position is used for simulation calculations in Custom mode.</p>
+                            </div>
                         )}
 
                         {/* Parameters for LINEAR */}
@@ -234,6 +264,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
                                 </p>
                                 {/* --- ADDED MAP EDITOR --- */}
                                 <FlatMapPathEditor
+                                    mode="path" // Use path mode
                                     startPoint={(params as LinearMovementParams).startLon !== undefined && (params as LinearMovementParams).startLat !== undefined ? { lon: (params as LinearMovementParams).startLon!, lat: (params as LinearMovementParams).startLat! } : null}
                                     endPoint={(params as LinearMovementParams).endLon !== undefined && (params as LinearMovementParams).endLat !== undefined ? { lon: (params as LinearMovementParams).endLon!, lat: (params as LinearMovementParams).endLat! } : null}
                                     onPointSet={(type, point) => {
@@ -280,6 +311,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
                                 <p className="text-sm text-albor-dark-gray">Define the start and end points of the circular arc on the map and the altitude.</p>
                                 {/* --- ADDED MAP EDITOR --- */}
                                 <FlatMapPathEditor
+                                    mode="path" // Use path mode
                                     startPoint={(params as CircularPathParams).startLon !== undefined && (params as CircularPathParams).startLat !== undefined ? { lon: (params as CircularPathParams).startLon!, lat: (params as CircularPathParams).startLat! } : null}
                                     endPoint={(params as CircularPathParams).endLon !== undefined && (params as CircularPathParams).endLat !== undefined ? { lon: (params as CircularPathParams).endLon!, lat: (params as CircularPathParams).endLat! } : null}
                                     onPointSet={(type, point) => {

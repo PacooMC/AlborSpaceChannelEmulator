@@ -141,15 +141,22 @@
           .global-map-marker-icon {
               /* Center icons properly */
               transform: translate(-50%, -50%);
-              fill: var(--color-albor-orange);
+              /* Default icon color */
+              fill: var(--color-albor-light-gray);
               stroke: var(--color-albor-deep-space);
               stroke-width: 0.3; /* Thinner stroke */
               opacity: 1.0;
               filter: drop-shadow(0 0 1px rgba(0,0,0,0.5)); /* Add subtle shadow */
           }
+          /* Specific icon colors */
+          .global-map-marker-icon.sat { fill: var(--color-albor-orange); }
           .global-map-marker-icon.gs { fill: var(--color-hologram-blue); }
           .global-map-marker-icon.ue { fill: theme('colors.emerald.400'); }
-          .global-map-marker-icon.default { fill: var(--color-albor-light-gray); }
+          .global-map-marker-icon.default { fill: var(--color-albor-light-gray); } /* Fallback */
+
+          /* Custom Movement Path Style */
+          .custom-movement-path { pointer-events: none; }
+
 
           /* --- Monitoring View Specific --- */
           .chart-tile-bg {
@@ -175,4 +182,4 @@
           .recharts-wrapper {
               /* width: 100%; */
               /* height: 100%; */
-          }
+          } /* *** ADDED CLOSING BRACE *** */

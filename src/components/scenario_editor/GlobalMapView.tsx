@@ -1,8 +1,10 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
             import { ComposableMap, Geographies, Geography, Marker, Graticule } from 'react-simple-maps';
-            import { geoOrthographic, geoPath } from 'd3-geo'; // Use Orthographic
-            import { RadioTower, Smartphone, Play, Pause, Plus, Minus, RotateCcw } from 'lucide-react'; // Import icons
-            import { ScenarioNode } from './types'; // Import ScenarioNode type
+            import { geoOrthographic, geoPath, GeoPath, GeoPermissibleObjects } from 'd3-geo'; // Import GeoPath, GeoPermissibleObjects
+            // *** ADDED Satellite icon ***
+            import { RadioTower, Smartphone, Satellite, Play, Pause, Plus, Minus, RotateCcw } from 'lucide-react'; // Import icons
+            // *** Import necessary types ***
+            import { ScenarioNode, ScenarioType, MovementPatternType, LinearMovementParams, CircularPathParams, StaticParams } from './types'; // Added StaticParams
 
             const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
             const ROTATION_SPEED_STEP = 0.05;
@@ -10,10 +12,11 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
             const MAX_ROTATION_SPEED = 0.5;
 
             interface GlobalMapViewProps {
-              nodes: ScenarioNode[]; // Receive the filtered nodes (GS/UE with coords)
+              nodes: ScenarioNode[]; // Receive ALL nodes
+              scenarioType: ScenarioType; // *** ADDED: Receive scenario type ***
             }
 
-            const GlobalMapView: React.FC<GlobalMapViewProps> = ({ nodes }) => {
+            const GlobalMapView: React.FC<GlobalMapViewProps> = ({ nodes, scenarioType }) => {
               const containerRef = useRef<HTMLDivElement>(null);
               const [dimensions, setDimensions] = useState({ width: 200, height: 200 }); // Initial guess
               const [rotation, setRotation] = useState<[number, number, number]>([-10, -40, 0]); // Default rotation
@@ -22,6 +25,12 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
               const [isDragging, setIsDragging] = useState(false);
               const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
               const animationFrameRef = useRef<number>();
+
+              // Filter nodes for map display (GS/UE with coords OR custom nodes with movement paths)
+              const mapNodes = nodes.filter(node =>
+                  (node.data.latitude !== undefined && node.data.longitude !== undefined) || // GS/UE in realistic OR static in custom
+                  (scenarioType === 'custom' && node.data.movementPattern && node.data.movementParams) // Custom nodes with movement
+              );
 
               // Update dimensions on resize
               useEffect(() => {
@@ -62,6 +71,9 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
                 .translate([dimensions.width / 2, dimensions.height / 2])
                 .rotate(rotation)
                 .clipAngle(90);
+
+              // *** Create a geoPath generator ***
+              const pathGenerator: GeoPath<any, GeoPermissibleObjects> = geoPath().projection(projection);
 
               // --- Interaction Handlers ---
               const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -176,13 +188,69 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
                           }
                         </Geographies>
 
-                        {/* Markers for Nodes */}
-                        {nodes.map(node => {
-                          // Ensure coordinates exist before rendering marker
-                          if (node.data.latitude === undefined || node.data.longitude === undefined) {
+                        {/* *** Draw Custom Movement Paths *** */}
+                        {scenarioType === 'custom' && mapNodes.map(node => {
+                            const pattern = node.data.movementPattern;
+                            const params = node.data.movementParams;
+                            if (!params || pattern === 'STATIC') return null;
+
+                            let startCoords: [number, number] | null = null;
+                            let endCoords: [number, number] | null = null;
+
+                            if (pattern === 'LINEAR' || pattern === 'CIRCULAR_PATH') {
+                                const pathParams = params as LinearMovementParams | CircularPathParams;
+                                if (pathParams.startLon !== undefined && pathParams.startLat !== undefined) {
+                                    startCoords = [pathParams.startLon, pathParams.startLat];
+                                }
+                                if (pathParams.endLon !== undefined && pathParams.endLat !== undefined) {
+                                    endCoords = [pathParams.endLon, pathParams.endLat];
+                                }
+                            }
+
+                            if (startCoords && endCoords) {
+                                const lineData = { type: "LineString", coordinates: [startCoords, endCoords] } as const;
+                                const pathD = pathGenerator(lineData);
+                                if (!pathD) return null; // Don't render if path is not visible
+
+                                return (
+                                    <path
+                                        key={`${node.id}-path`}
+                                        d={pathD}
+                                        fill="none"
+                                        stroke="var(--color-hologram-blue)" // Use a different color for paths
+                                        strokeWidth={0.8}
+                                        strokeDasharray="3 2" // Dashed line
+                                        strokeOpacity={0.7}
+                                        className="custom-movement-path"
+                                    />
+                                );
+                            }
                             return null;
+                        })}
+
+                        {/* Markers for Nodes */}
+                        {mapNodes.map(node => {
+                          // *** UPDATED Coordinate Prioritization Logic ***
+                          let markerCoords: [number, number] | null = null;
+                          const params = node.data.movementParams;
+                          const pattern = node.data.movementPattern;
+
+                          if (scenarioType === 'custom' && pattern && pattern !== 'STATIC' && params) {
+                              // Prioritize movement start point in custom mode with movement
+                              const pathParams = params as LinearMovementParams | CircularPathParams;
+                              if (pathParams.startLon !== undefined && pathParams.startLat !== undefined) {
+                                  markerCoords = [pathParams.startLon, pathParams.startLat];
+                              }
                           }
-                          const markerCoords: [number, number] = [node.data.longitude, node.data.latitude];
+
+                          // Fallback to static lat/lon if no movement start point or not custom movement
+                          if (!markerCoords && node.data.latitude !== undefined && node.data.longitude !== undefined) {
+                              markerCoords = [node.data.longitude, node.data.latitude];
+                          }
+                          // *** End Update ***
+
+                          if (!markerCoords) return null; // Skip if no coordinates found
+
                           const nodeType = node.data.type;
                           const nodeName = node.data.name;
 
@@ -190,7 +258,6 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
                           const projectedPoint = projection(markerCoords);
                           if (!projectedPoint) return null; // Don't render if off-globe
 
-                          // *** INCREASED ICON SIZE ***
                           const iconSize = nodeType === 'GS' ? 8 : 7; // Larger icons
                           const circleRadius = iconSize / 2 + 1; // Slightly larger circle bg
 
@@ -199,10 +266,13 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
                               <g className="global-map-marker" transform="translate(0, 0)">
                                  {/* Add a background circle for better visibility */}
                                  <circle r={circleRadius} fill="var(--color-albor-deep-space)" opacity="0.5"/>
+                                {/* *** UPDATED Icon Rendering *** */}
+                                {nodeType === 'SAT' && <Satellite size={iconSize} className="global-map-marker-icon sat" />}
                                 {nodeType === 'GS' && <RadioTower size={iconSize} className="global-map-marker-icon gs" />}
                                 {nodeType === 'UE' && <Smartphone size={iconSize} className="global-map-marker-icon ue" />}
-                                {/* Fallback or default icon */}
-                                {!['GS', 'UE'].includes(nodeType) && <circle r={iconSize / 2} className="global-map-marker-icon default" />}
+                                {/* Fallback for unknown types (shouldn't happen with current types) */}
+                                {!['SAT', 'GS', 'UE'].includes(nodeType) && <circle r={iconSize / 2} className="global-map-marker-icon default" />}
+                                {/* *** End Update *** */}
                                 <title>{`${nodeName} (${nodeType})\n${markerCoords[1].toFixed(2)}°, ${markerCoords[0].toFixed(2)}°`}</title>
                               </g>
                             </Marker>

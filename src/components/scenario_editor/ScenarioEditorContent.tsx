@@ -574,7 +574,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
                </div>
                <div className="h-[300px] flex flex-shrink-0 border-t border-albor-bg-dark">
                   <div className="w-3/5 h-full border-r border-albor-bg-dark">
-                      <GlobalMapView nodes={mapNodes} />
+                      {/* *** Pass scenarioType to GlobalMapView *** */}
+                      <GlobalMapView nodes={nodes} scenarioType={scenarioType} />
                   </div>
                   <div className="w-2/5 h-full">
                       <LinkOverviewPanel links={edges} nodes={nodes} scenarioType={scenarioType} />
