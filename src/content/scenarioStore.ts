@@ -110,7 +110,8 @@ import { nanoid } from 'nanoid';
         /** Gets the initial state for a brand new scenario. */
         export const getNewScenarioDefaultState = (): ScenarioState => ({
             name: "New Scenario",
-            scenarioType: 'realistic', // Default to realistic
+            // *** REVERTED: Default back to realistic ***
+            scenarioType: 'realistic',
             nodes: [], // Start with empty canvas
             edges: [],
             viewport: { x: 0, y: 0, zoom: 1 },
