@@ -258,7 +258,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
             setTimeout(() => { internalChangeRef.current = false; }, 50);
         };
 
-        if (hasUnsavedChanges && lastSavedState !== null) {
+        // *** MODIFIED: Only ask for confirmation if there are actual changes ***
+        if (hasUnsavedChanges) {
             requestConfirmation({
                 title: "Discard Unsaved Changes?",
                 message: "Switching scenario type will discard your unsaved changes. Are you sure?",
@@ -267,7 +268,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
                 onConfirmCallback: proceedWithTypeChange,
             });
         } else {
-            proceedWithTypeChange(); // No unsaved changes or new scenario, proceed directly
+            proceedWithTypeChange(); // No unsaved changes, proceed directly
         }
       };
       // --- End Update ---
@@ -413,7 +414,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
             }
         };
 
-        if (hasUnsavedChanges && lastSavedState !== null) {
+        // *** MODIFIED: Only ask for confirmation if there are actual changes ***
+        if (hasUnsavedChanges) {
             requestConfirmation({
                 title: "Save Changes Before Starting?",
                 message: "You have unsaved changes. Would you like to save them before starting the simulation?",
@@ -423,9 +425,9 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
                 onCancel: startAction, // Start without saving (overrides default cancel)
             });
         } else {
-            startAction(); // No unsaved changes or new scenario, start directly
+            startAction(); // No unsaved changes, start directly
         }
-      }, [currentScenarioIdInternal, scenarioName, onStartScenario, hasUnsavedChanges, handleSave, lastSavedState]);
+      }, [currentScenarioIdInternal, scenarioName, onStartScenario, hasUnsavedChanges, handleSave]);
       // --- End Update ---
 
       const handleToggleScenarioSelection = useCallback((id: string) => {
@@ -481,7 +483,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
             notifyAppToLoad(id);
         };
 
-        if (hasUnsavedChanges && lastSavedState !== null) {
+        // *** MODIFIED: Only ask for confirmation if there are actual changes ***
+        if (hasUnsavedChanges) {
           requestConfirmation({
               title: "Discard Unsaved Changes?",
               message: "Loading another scenario will discard your current unsaved changes. Are you sure?",
@@ -490,9 +493,9 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
               onConfirmCallback: proceedWithLoad,
           });
         } else {
-          proceedWithLoad(); // No unsaved changes or new scenario
+          proceedWithLoad(); // No unsaved changes
         }
-      }, [notifyAppToLoad, hasUnsavedChanges, lastSavedState]);
+      }, [notifyAppToLoad, hasUnsavedChanges]);
       // --- End Update ---
 
       // --- UPDATED: Use Confirmation Modal ---
@@ -551,6 +554,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
             <ScenarioManagementSidebar
                 savedScenarios={savedScenarios}
                 selectedScenarioIds={selectedScenarioIds}
+                currentScenarioId={currentScenarioIdInternal} // *** ADDED: Pass current ID ***
                 onLoadScenario={handleLoadScenarioTrigger}
                 onToggleSelection={handleToggleScenarioSelection}
                 onDeleteSelected={handleDeleteSelectedScenarios}

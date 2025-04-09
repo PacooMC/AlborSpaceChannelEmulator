@@ -55,6 +55,16 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
             return ( <div> <label htmlFor={id} className="block text-albor-dark-gray mb-1 text-xs">{label}</label> <input {...commonProps} type={type} step={step} min={min} max={max} /> </div> );
         };
 
+        // *** NEW: Helper to get display name ***
+        const getPatternDisplayName = (pattern: MovementPatternType): string => {
+            switch (pattern) {
+                case 'STATIC': return 'Static';
+                case 'LINEAR': return 'Linear';
+                case 'CIRCULAR_PATH': return 'Circular Path';
+                default: return pattern; // Fallback
+            }
+        };
+
 
         const MovementPatternEditorModal: React.FC<MovementPatternEditorModalProps> = ({
           isOpen,
@@ -200,14 +210,16 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
                             className="w-full bg-albor-deep-space/80 border border-albor-bg-dark rounded px-2 py-1.5 text-sm text-albor-light-gray focus:outline-none focus:ring-1 focus:ring-albor-orange"
                         >
                             {availablePatterns.map(p => (
-                                <option key={p} value={p}>{p === 'CIRCULAR_PATH' ? 'Circular Path' : p.replace(/_/g, ' ')}</option> // Display name change
+                                // *** UPDATED: Use display name helper ***
+                                <option key={p} value={p}>{getPatternDisplayName(p)}</option>
                             ))}
                         </select>
                     </div>
 
                     {/* Parameter Editor Area */}
                     <div className="border border-albor-bg-dark/80 rounded p-3 bg-albor-deep-space/30 min-h-[150px]">
-                        <h3 className="text-sm font-semibold text-albor-light-gray mb-3">Parameters for: <span className="text-albor-orange">{pattern === 'CIRCULAR_PATH' ? 'Circular Path' : pattern.replace(/_/g, ' ')}</span></h3>
+                        {/* *** UPDATED: Use display name helper *** */}
+                        <h3 className="text-sm font-semibold text-albor-light-gray mb-3">Parameters for: <span className="text-albor-orange">{getPatternDisplayName(pattern)}</span></h3>
 
                         {pattern === 'STATIC' && (
                             <p className="text-sm text-albor-dark-gray italic">No parameters needed for static nodes.</p>

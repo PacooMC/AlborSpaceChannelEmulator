@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-        import { HardDrive, Search, Download, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+        import { HardDrive, Search, Download, Trash2, ChevronDown, ChevronRight, Edit } from 'lucide-react'; // Added Edit icon
 
         interface SavedScenario {
           id: string;
@@ -9,6 +9,7 @@ import React, { useState, useMemo } from 'react';
         interface SavedScenariosPanelProps {
           savedScenarios: SavedScenario[];
           selectedScenarioIds: Set<string>; // Receive selected IDs
+          currentScenarioId: string | null; // *** ADDED: ID of the currently loaded scenario ***
           onLoadScenario: (id: string | null) => void; // Allow null for "New Scenario"
           onToggleSelection: (id: string) => void; // Receive toggle handler
           // onDeleteScenario?: (id: string) => void; // Keep or remove based on preference
@@ -18,6 +19,7 @@ import React, { useState, useMemo } from 'react';
         const SavedScenariosPanel: React.FC<SavedScenariosPanelProps> = ({
           savedScenarios,
           selectedScenarioIds, // Destructure props
+          currentScenarioId, // *** ADDED ***
           onLoadScenario,
           onToggleSelection, // Destructure props
           // onDeleteScenario,
@@ -65,45 +67,53 @@ import React, { useState, useMemo } from 'react';
                   {/* Make list scrollable and take remaining space */}
                   <div className="flex-1 overflow-y-auto -mr-1 pr-1 space-y-1 min-h-[100px]"> {/* Ensure minimum height */}
                     {filteredScenarios.length > 0 ? (
-                      filteredScenarios.map((scenario) => (
-                        <div
-                          key={scenario.id}
-                          // Add hover effect to the whole item
-                          className={`flex items-center justify-between w-full p-1.5 rounded group hover:bg-albor-bg-dark/60 text-left cursor-pointer transition-colors ${selectedScenarioIds.has(scenario.id) ? 'bg-albor-orange/20 ring-1 ring-albor-orange/50' : ''}`} // Highlight selected
-                          // Load scenario on click of the item itself (excluding checkbox/buttons)
-                          onClick={() => onLoadScenario(scenario.id)}
-                        >
-                          {/* Checkbox */}
-                          <input
-                            type="checkbox"
-                            checked={selectedScenarioIds.has(scenario.id)}
-                            // Call toggle selection when checkbox state changes
-                            onChange={() => onToggleSelection(scenario.id)}
-                            // Stop propagation to prevent loading when clicking checkbox
-                            onClick={(e) => e.stopPropagation()}
-                            className="mr-2 flex-shrink-0 form-checkbox h-4 w-4 text-albor-orange bg-albor-bg-dark border-albor-dark-gray rounded focus:ring-albor-orange focus:ring-offset-0" // Added focus style reset
-                          />
-                          {/* Name */}
-                          <span
-                            className="text-xs text-albor-light-gray truncate flex-1 mr-2"
-                            title={scenario.name}
+                      filteredScenarios.map((scenario) => {
+                        const isSelected = selectedScenarioIds.has(scenario.id);
+                        const isCurrent = currentScenarioId === scenario.id; // *** Check if it's the currently loaded one ***
+                        let itemClasses = `flex items-center justify-between w-full p-1.5 rounded group hover:bg-albor-bg-dark/60 text-left cursor-pointer transition-colors`;
+                        if (isCurrent) {
+                            itemClasses += ' bg-albor-orange/10 ring-1 ring-inset ring-albor-orange/60'; // Highlight for current
+                        } else if (isSelected) {
+                            itemClasses += ' bg-albor-bg-dark/40 ring-1 ring-inset ring-albor-dark-gray'; // Different highlight for selected
+                        }
+
+                        return (
+                          <div
+                            key={scenario.id}
+                            className={itemClasses}
+                            onClick={() => onLoadScenario(scenario.id)}
                           >
-                            {scenario.name}
-                          </span>
-                          {/* Action Buttons - Appear on hover */}
-                          <div className="flex-shrink-0 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {/* Removed single delete button to favor multi-delete */}
-                            {/* {onDeleteScenario && ( ... )} */}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onLoadScenario(scenario.id); }} // Ensure load on button click too
-                              className="p-1 rounded text-albor-dark-gray hover:text-albor-orange hover:bg-albor-orange/10 transition-colors"
-                              title="Load Scenario"
-                            >
-                              <Download size={12} />
-                            </button>
+                            {/* Checkbox */}
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => onToggleSelection(scenario.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mr-2 flex-shrink-0 form-checkbox h-4 w-4 text-albor-orange bg-albor-bg-dark border-albor-dark-gray rounded focus:ring-albor-orange focus:ring-offset-0"
+                            />
+                            {/* Name & Current Indicator */}
+                            <div className="flex items-center space-x-1 flex-1 mr-2 overflow-hidden">
+                                {isCurrent && <Edit size={10} className="text-albor-orange flex-shrink-0" title="Currently Editing"/>}
+                                <span
+                                  className={`text-xs truncate ${isCurrent ? 'text-albor-orange font-medium' : 'text-albor-light-gray'}`}
+                                  title={scenario.name}
+                                >
+                                  {scenario.name}
+                                </span>
+                            </div>
+                            {/* Action Buttons - Appear on hover */}
+                            <div className="flex-shrink-0 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onLoadScenario(scenario.id); }}
+                                className="p-1 rounded text-albor-dark-gray hover:text-albor-orange hover:bg-albor-orange/10 transition-colors"
+                                title="Load Scenario"
+                              >
+                                <Download size={12} />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <p className="text-xs text-albor-dark-gray px-1 italic text-center py-3">
                         {searchTerm ? 'No scenarios found.' : 'No saved scenarios.'}

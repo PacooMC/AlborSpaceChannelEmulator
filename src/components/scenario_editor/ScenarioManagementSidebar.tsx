@@ -10,6 +10,7 @@ import React, { useState } from 'react';
     interface ScenarioManagementSidebarProps {
       savedScenarios: SavedScenarioInfo[];
       selectedScenarioIds: Set<string>; // Receive selected IDs
+      currentScenarioId: string | null; // *** ADDED: ID of the currently loaded scenario ***
       onLoadScenario: (id: string | null) => void; // Allow null for "New Scenario"
       onToggleSelection: (id: string) => void; // Receive toggle handler
       onDeleteSelected: () => void; // Receive multi-delete handler
@@ -19,6 +20,7 @@ import React, { useState } from 'react';
     const ScenarioManagementSidebar: React.FC<ScenarioManagementSidebarProps> = ({
       savedScenarios,
       selectedScenarioIds, // Destructure props
+      currentScenarioId, // *** ADDED ***
       onLoadScenario,
       onToggleSelection, // Destructure props
       onDeleteSelected, // Destructure props
@@ -57,6 +59,7 @@ import React, { useState } from 'react';
               <SavedScenariosPanel
                   savedScenarios={savedScenarios}
                   selectedScenarioIds={selectedScenarioIds} // Pass down selected IDs
+                  currentScenarioId={currentScenarioId} // *** ADDED: Pass down current ID ***
                   onLoadScenario={onLoadScenario}
                   onToggleSelection={onToggleSelection} // Pass down toggle handler
                   // onDeleteScenario={onDeleteScenario} // Remove single delete prop if not needed
