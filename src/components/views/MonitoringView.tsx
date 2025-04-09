@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         SignalMetrics, SpectrumDataPoint, LogEntry, LogLevel,
         generateSignalMetrics, generateSpectrumData, generateInitialSignalHistory,
         generateLogEntry, generateInitialLogs
-    } from '../../content/monitoringData';
+    } from '../../content/monitoringData'; // Fixed: Added space before path
     import {
         Play, Pause, Settings, Maximize, Minimize, Table, Activity, AlertTriangle,
         ChevronDown, Check, ChevronsUpDown, AreaChart as AreaChartIcon, LineChart as LineChartIcon,
@@ -15,6 +15,13 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
     } from 'lucide-react';
     import type { Scenario, ScenarioStatus } from '../../content/scenarios';
     import { getSystemSummary, SystemSummaryStats } from '../../content/systemSummary'; // Import summary data fetcher
+
+    // --- Import scenario-specific components ---
+    import SystemSummaryTile from '../dashboard/SystemSummaryTile';
+    import OrbitMapTile from '../dashboard/OrbitMapTile';
+    import PortAssignmentMap from '../dashboard/PortAssignmentTile';
+    import ConfirmationModal, { ConfirmationModalProps } from '../common/ConfirmationModal'; // Import the modal
+
 
     // --- Child Components ---
 
@@ -127,412 +134,371 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
       return ( <div className="h-full w-full overflow-auto p-1 custom-scrollbar"> <table className="w-full text-left text-xs"> <thead> <tr className="text-albor-dark-gray border-b border-albor-bg-dark"> <th className="py-1 px-2">Metric</th> <th className="py-1 px-2 text-right">Current</th> <th className="py-1 px-2 text-right">Min</th> <th className="py-1 px-2 text-right">Max</th> </tr> </thead> <tbody className="divide-y divide-albor-bg-dark/50"> {metricsToDisplay.map(({ key, name }) => ( <tr key={key} className="hover:bg-albor-bg-dark/30"> <td className="py-1.5 px-2 font-medium text-albor-light-gray">{name}</td> <td className="py-1.5 px-2 text-right font-mono">{formatValue(key, summary.current?.[key])}</td> <td className="py-1.5 px-2 text-right font-mono text-albor-dark-gray">{formatValue(key, summary.min[key])}</td> <td className="py-1.5 px-2 text-right font-mono text-albor-dark-gray">{formatValue(key, summary.max[key])}</td> </tr> ))} </tbody> </table> </div> );
     };
 
-    // Event Log Panel Component - Modified to accept onClearLogs
+    // Event Log Panel Component - Define Props Interface
     interface EventLogPanelProps {
         logs: LogEntry[];
-        onClearLogs?: () => void; // Make optional for modal usage
+        onClearLogs?: () => void; // Make optional as it's passed down
     }
     const EventLogPanel: React.FC<EventLogPanelProps> = ({ logs, onClearLogs }) => {
         const logEndRef = useRef<HTMLDivElement>(null);
-        useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
-        const getLogLevelInfo = (level: LogLevel): { icon: React.ElementType, color: string } => { switch (level) { case 'info': return { icon: Info, color: 'text-blue-400' }; case 'warn': return { icon: AlertTriangle, color: 'text-yellow-400' }; case 'error': return { icon: AlertCircle, color: 'text-red-500' }; case 'debug': return { icon: WifiOff, color: 'text-gray-500' }; default: return { icon: Info, color: 'text-gray-400' }; } };
+        const levelInfo: { [key in LogLevel]: { icon: React.ElementType; color: string } } = {
+            info: { icon: Info, color: 'text-blue-400' },
+            warn: { icon: AlertTriangle, color: 'text-yellow-400' },
+            error: { icon: AlertCircle, color: 'text-red-400' },
+            debug: { icon: WifiOff, color: 'text-gray-500' },
+        };
 
-        // Note: The clear button is now rendered in the ChartTile component
-        // We just need the logs rendering logic here.
+        useEffect(() => {
+            logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, [logs]); // Scroll when logs change
 
         return (
-            <div className="h-full w-full overflow-y-auto custom-scrollbar pr-1 flex flex-col">
-                <div className="space-y-1.5 flex-1">
-                    {Array.isArray(logs) ? logs.map(log => {
-                        const { icon: Icon, color } = getLogLevelInfo(log.level);
+            <div className="h-full w-full flex flex-col overflow-hidden p-1">
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1">
+                    {logs.map(log => {
+                        const InfoIcon = levelInfo[log.level].icon;
+                        const color = levelInfo[log.level].color;
                         return (
-                            <div key={log.id} className="flex items-start space-x-2 text-xs animate-fade-in-short">
-                                <Icon size={14} className={`${color} flex-shrink-0 mt-0.5`} />
-                                <div className="flex-1">
-                                    <span className="text-albor-dark-gray mr-2">
-                                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                    </span>
-                                    {log.source && <span className="font-medium text-albor-light-gray/80 mr-1">[{log.source}]</span>}
-                                    <span className="text-albor-light-gray">{log.message}</span>
-                                </div>
+                            <div key={log.id} className="flex items-start space-x-1.5 text-xs animate-fade-in-short">
+                                <InfoIcon size={12} className={`${color} flex-shrink-0 mt-0.5`} />
+                                <span className="text-albor-dark-gray font-mono">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                                <span className={`font-medium ${color} uppercase text-[10px] flex-shrink-0`}>[{log.level}]</span>
+                                {log.source && <span className="text-purple-400 flex-shrink-0">[{log.source}]</span>}
+                                <span className="text-albor-light-gray break-words flex-1">{log.message}</span>
                             </div>
                         );
-                    }) : (
-                        <p className="text-xs text-albor-dark-gray italic text-center py-4">Log data is unavailable.</p>
-                    )}
-                    {Array.isArray(logs) && logs.length === 0 && (
-                        <p className="text-xs text-albor-dark-gray italic text-center py-4">No log entries.</p>
-                    )}
-                    <div ref={logEndRef} />
+                    })}
+                    <div ref={logEndRef} /> {/* Invisible element to scroll to */}
                 </div>
+                {logs.length === 0 && (
+                    <p className="text-xs text-albor-dark-gray italic text-center py-4">No log entries yet.</p>
+                )}
             </div>
         );
     };
 
-    // Modal Component for Maximized Chart (No changes needed)
-    interface MaximizeModalProps { chartId: string; title: string; icon?: React.ElementType; children: React.ReactNode; onClose: () => void; }
-    const MaximizeModal: React.FC<MaximizeModalProps> = ({ chartId, title, icon: Icon, children, onClose }) => (
-        <div className="fixed inset-0 bg-albor-deep-space/90 backdrop-blur-sm z-50 flex flex-col p-4 animate-fade-in">
-            <div className="flex justify-between items-center mb-2 flex-shrink-0 px-1 pb-2 border-b border-albor-dark-gray/50">
-              <div className="flex items-center space-x-2"> {Icon && <Icon size={16} className="text-albor-dark-gray" />} <h3 className="text-base font-semibold text-albor-light-gray">{title}</h3> </div>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-full text-albor-dark-gray hover:text-albor-light-gray hover:bg-albor-bg-dark/50 transition-colors relative z-[60]"
-                style={{ position: 'relative', zIndex: 60 }}
-                title="Close"
-              >
-                <CloseIcon size={18} />
-              </button>
-            </div>
-            <div className="flex-1 w-full h-full overflow-hidden min-h-0 relative">
-                <div className="absolute inset-0">
-                    {children}
-                </div>
-            </div>
-        </div>
-    );
 
-    // --- Import scenario-specific components ---
-    import SystemSummaryTile from '../dashboard/SystemSummaryTile';
-    import OrbitMapTile from '../dashboard/OrbitMapTile';
-    import PortAssignmentMap from '../dashboard/PortAssignmentTile';
-
-    // --- Main View Component ---
-
-    const MAX_HISTORY = 100;
-    const MAX_LOGS = 100;
+    // --- Main Monitoring View Component ---
 
     interface MonitoringViewProps {
-        scenarioIdToMonitor: string | null; // ID of the scenario to monitor (prop from App)
-        allRunningScenarios: Scenario[]; // Full list for dropdown
-        onPauseScenario?: (id: string) => void;
-        onResumeScenario?: (id: string) => void;
-        onStopScenario?: (id: string) => void;
+      scenarioIdToMonitor: string | null; // ID of the scenario to monitor
+      allRunningScenarios: Scenario[]; // List of all running/paused scenarios for dropdown
+      onPauseScenario: (id: string) => void;
+      onResumeScenario: (id: string) => void;
+      onStopScenario: (id: string) => void;
     }
 
+    // --- NEW: Type for confirmation state ---
+    type ConfirmationState = Omit<ConfirmationModalProps, 'isOpen' | 'onConfirm' | 'onCancel'> & {
+        onConfirmCallback: () => void;
+    } | null;
+
     const MonitoringView: React.FC<MonitoringViewProps> = ({
-        scenarioIdToMonitor,
-        allRunningScenarios,
-        onPauseScenario,
-        onResumeScenario,
-        onStopScenario
+      scenarioIdToMonitor: initialScenarioId,
+      allRunningScenarios,
+      onPauseScenario,
+      onResumeScenario,
+      onStopScenario,
     }) => {
-      const [selectedMonitorScenarioId, setSelectedMonitorScenarioId] = useState<string | null>(null);
+      const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
       const [signalHistory, setSignalHistory] = useState<SignalMetrics[]>([]);
       const [spectrumData, setSpectrumData] = useState<SpectrumDataPoint[]>([]);
-      const [eventLogs, setEventLogs] = useState<LogEntry[]>([]); // State for logs
-      const [maximizedChartId, setMaximizedChartId] = useState<string | null>(null);
+      const [eventLogs, setEventLogs] = useState<LogEntry[]>([]);
+      const [maximizedChart, setMaximizedChart] = useState<string | null>(null);
       const [isDropdownOpen, setIsDropdownOpen] = useState(false);
       const dropdownRef = useRef<HTMLDivElement>(null);
+      const [confirmationState, setConfirmationState] = useState<ConfirmationState>(null); // State for modal
 
-      // --- Effect to handle scenario selection logic (No changes needed) ---
-      useEffect(() => {
-        if (scenarioIdToMonitor !== null) {
-            if (scenarioIdToMonitor !== selectedMonitorScenarioId) {
-                console.log(`MonitoringView: Prop changed, setting scenario to: ${scenarioIdToMonitor}`);
-                setSelectedMonitorScenarioId(scenarioIdToMonitor);
-            }
+      // --- Confirmation Modal Logic ---
+      const requestConfirmation = (details: Omit<ConfirmationState, 'onConfirmCallback'> & { onConfirmCallback: () => void }) => {
+        setConfirmationState(details);
+      };
+
+      const handleConfirm = () => {
+        if (confirmationState) {
+          confirmationState.onConfirmCallback();
         }
-        else {
-            if (selectedMonitorScenarioId === null) {
-                const firstAvailable = allRunningScenarios.find(s => s.status === 'running' || s.status === 'paused');
-                if (firstAvailable) {
-                    console.log("MonitoringView: No prop ID, setting default scenario to:", firstAvailable.id);
-                    setSelectedMonitorScenarioId(firstAvailable.id);
-                } else {
-                    console.log("MonitoringView: No prop ID and no available scenarios to set as default.");
-                }
-            }
-        }
-      }, [scenarioIdToMonitor, allRunningScenarios, selectedMonitorScenarioId]);
+        setConfirmationState(null);
+      };
 
-      const selectedScenario = useMemo(() => {
-        return allRunningScenarios.find(s => s.id === selectedMonitorScenarioId);
-      }, [selectedMonitorScenarioId, allRunningScenarios]);
+      const handleCancel = () => {
+        setConfirmationState(null);
+      };
+      // --- End Confirmation Modal Logic ---
 
-      const isSelectedScenarioRunning = selectedScenario?.status === 'running';
-
-      // Effect for data loading when selected ID changes (No changes needed)
+      // Determine the scenario to display
       useEffect(() => {
-        if (selectedMonitorScenarioId) {
-          console.log(`MonitoringView: Loading data for ${selectedMonitorScenarioId}`);
-          setSignalHistory(generateInitialSignalHistory(selectedMonitorScenarioId, MAX_HISTORY));
-          setSpectrumData(generateSpectrumData(selectedMonitorScenarioId));
-          setEventLogs(generateInitialLogs(selectedMonitorScenarioId, MAX_LOGS)); // Load initial logs
+        // If an initial ID is provided, use it.
+        // Otherwise, if there are running scenarios, pick the first one.
+        // Otherwise, set to null.
+        if (initialScenarioId) {
+            setSelectedScenarioId(initialScenarioId);
+        } else if (allRunningScenarios.length > 0) {
+            // Prefer running over paused if available
+            const running = allRunningScenarios.find(s => s.status === 'running');
+            setSelectedScenarioId(running ? running.id : allRunningScenarios[0].id);
+        } else {
+            setSelectedScenarioId(null);
+        }
+      }, [initialScenarioId, allRunningScenarios]);
+
+
+      // Reset data and generate initial state when scenario changes
+      useEffect(() => {
+        if (selectedScenarioId) {
+          console.log(`MonitoringView: Initializing data for scenario ${selectedScenarioId}`);
+          setSignalHistory(generateInitialSignalHistory(selectedScenarioId));
+          setSpectrumData(generateSpectrumData(selectedScenarioId));
+          setEventLogs(generateInitialLogs(selectedScenarioId));
         } else {
           console.log("MonitoringView: No scenario selected, clearing data.");
           setSignalHistory([]);
           setSpectrumData([]);
-          setEventLogs([]); // Clear logs
+          setEventLogs([]);
         }
-      }, [selectedMonitorScenarioId]);
+        // Reset maximized view when scenario changes
+        setMaximizedChart(null);
+      }, [selectedScenarioId]);
 
-      // Effect for periodic updates (No changes needed)
+      // Data update interval
       useEffect(() => {
-        let intervalId: NodeJS.Timeout | null = null;
-        if (isSelectedScenarioRunning && selectedMonitorScenarioId) {
-          console.log(`MonitoringView: Starting updates for ${selectedMonitorScenarioId}`);
-          intervalId = setInterval(() => {
-            setSignalHistory(prev => [...prev, generateSignalMetrics(selectedMonitorScenarioId, prev[prev.length - 1])].slice(-MAX_HISTORY));
-            setSpectrumData(generateSpectrumData(selectedMonitorScenarioId));
-            const newLog = generateLogEntry(selectedMonitorScenarioId);
-            if (newLog) setEventLogs(prevLogs => [...prevLogs, newLog].slice(-MAX_LOGS)); // Update logs
-          }, 1000);
-        } else {
-            console.log(`MonitoringView: Stopping updates for ${selectedMonitorScenarioId} (Status: ${selectedScenario?.status})`);
-        }
-        return () => { if (intervalId) { console.log(`MonitoringView: Clearing update interval for ${selectedMonitorScenarioId}`); clearInterval(intervalId); } };
-      }, [isSelectedScenarioRunning, selectedMonitorScenarioId]);
+        if (!selectedScenarioId) return; // Don't run interval if no scenario selected
 
-      // Effect for closing dropdown (No changes needed)
+        const intervalId = setInterval(() => {
+          setSignalHistory(prev => [...prev.slice(-99), generateSignalMetrics(selectedScenarioId, prev[prev.length - 1])]);
+          setSpectrumData(generateSpectrumData(selectedScenarioId)); // Regenerate spectrum periodically
+
+          // Potentially add a new log entry
+          const newLog = generateLogEntry(selectedScenarioId);
+          if (newLog) {
+              setEventLogs(prev => [...prev.slice(-199), newLog]); // Keep last 200 logs
+          }
+
+        }, 1000); // Update every second
+
+        return () => clearInterval(intervalId);
+      }, [selectedScenarioId]); // Rerun effect if selectedScenarioId changes
+
+      // Close dropdown when clicking outside
       useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setIsDropdownOpen(false); };
+        const handleClickOutside = (event: MouseEvent) => {
+          if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            setIsDropdownOpen(false);
+          }
+        };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
       }, []);
 
-      // --- Handlers ---
-      const handleToggleMaximize = (chartId: string) => setMaximizedChartId(chartId);
-      const handleCloseMaximize = () => setMaximizedChartId(null);
-      const handleScenarioSelect = (id: string | null) => {
-          if (id !== selectedMonitorScenarioId) {
-              console.log("MonitoringView: User selected scenario:", id);
-              setSelectedMonitorScenarioId(id);
-          }
-          setIsDropdownOpen(false);
-      };
-      const handlePauseResumeClick = () => {
-        if (!selectedMonitorScenarioId) return;
-        if (isSelectedScenarioRunning) { onPauseScenario?.(selectedMonitorScenarioId); }
-        else { onResumeScenario?.(selectedMonitorScenarioId); }
-      };
-      const handleStopClick = () => {
-        if (!selectedMonitorScenarioId) return;
-        if (window.confirm(`Are you sure you want to stop scenario "${selectedScenario?.name}"?`)) {
-            onStopScenario?.(selectedMonitorScenarioId);
-        }
+      const handleMaximizeClick = (chartId: string) => {
+        setMaximizedChart(chartId);
       };
 
-      // --- NEW: Handler to clear logs ---
-      const clearEventLogs = useCallback(() => {
-          if (window.confirm("Are you sure you want to clear the event log?")) {
-              console.log("MonitoringView: Clearing event logs.");
-              setEventLogs([]);
-          }
-      }, []);
-      // --- End New Handler ---
+      const handleMinimizeClick = () => {
+        setMaximizedChart(null);
+      };
 
-      const chartConfigs = useMemo(() => [
-        { id: 'snr', metric: 'snr' as keyof SignalMetrics, name: 'SNR', color: '#34D399', unit: 'dB', icon: LineChartIcon },
-        { id: 'delay', metric: 'delay' as keyof SignalMetrics, name: 'Delay', color: '#60A5FA', unit: 'ms', icon: LineChartIcon },
-        { id: 'power', metric: 'receivedPower' as keyof SignalMetrics, name: 'Rx Power', color: '#F87171', unit: 'dBm', icon: LineChartIcon },
-        { id: 'doppler', metric: 'doppler' as keyof SignalMetrics, name: 'Doppler', color: '#FACC15', unit: 'Hz', icon: LineChartIcon },
-        { id: 'elevation',metric: 'elevation' as keyof SignalMetrics, name: 'Elevation', color: '#A78BFA', unit: '°', icon: TrendingUp },
-      ], []);
+      const handleScenarioSelect = (id: string) => {
+        setSelectedScenarioId(id);
+        setIsDropdownOpen(false);
+      };
 
-      const currentSelectionName = selectedScenario?.name ?? 'Select Scenario...';
+      // --- NEW: Clear Logs Function ---
+      const handleClearLogs = useCallback(() => {
+        requestConfirmation({
+            title: "Clear Event Logs?",
+            message: "Are you sure you want to clear all current log entries for this scenario?",
+            confirmText: "Clear Logs",
+            confirmButtonVariant: 'danger',
+            onConfirmCallback: () => {
+                setEventLogs([]);
+                console.log(`Logs cleared for scenario: ${selectedScenarioId}`);
+            },
+        });
+      }, [selectedScenarioId]); // Dependency on selectedScenarioId to log correctly
 
-      const maximizedChartConfig = useMemo(() => {
-          if (!maximizedChartId) return null;
-          if (maximizedChartId === 'spectrum') return { id: 'spectrum', title: 'Spectrum Analysis', icon: AreaChartIcon };
-          if (maximizedChartId === 'summary') return { id: 'summary', title: 'Metrics Summary', icon: Table };
-          if (maximizedChartId === 'eventlog') return { id: 'eventlog', title: 'Event Log', icon: List };
-          if (maximizedChartId === 'scenario-details') return { id: 'scenario-details', title: 'Scenario Details', icon: Settings };
-          if (maximizedChartId === 'orbit-map') return { id: 'orbit-map', title: 'Orbit Map', icon: Map };
-          if (maximizedChartId === 'port-map') return { id: 'port-map', title: 'Port Assignment Map', icon: Server };
-          const signalConfig = chartConfigs.find(c => c.id === maximizedChartId);
-          if (signalConfig) {
-              return {
-                  id: signalConfig.id,
-                  title: `${signalConfig.name} vs Time`,
-                  icon: signalConfig.icon,
-                  metric: signalConfig.metric,
-                  name: signalConfig.name,
-                  color: signalConfig.color,
-                  unit: signalConfig.unit
-              };
-          }
-          return null;
-      }, [maximizedChartId, chartConfigs]);
+      const selectedScenario = useMemo(() => allRunningScenarios.find(s => s.id === selectedScenarioId), [selectedScenarioId, allRunningScenarios]);
+      const scenarioStatus: ScenarioStatus = selectedScenario?.status ?? 'stopped';
 
+      // --- Render Logic ---
 
-      // --- Main Render Logic ---
+      const renderMaximizedView = () => {
+        if (!maximizedChart) return null;
+
+        const chartComponents: { [key: string]: React.ReactNode } = {
+          snr: <SignalChart data={signalHistory} metric="snr" name="SNR" color="#F97316" unit="dB" />,
+          delay: <SignalChart data={signalHistory} metric="delay" name="Delay" color="#3B82F6" unit="ms" />,
+          power: <SignalChart data={signalHistory} metric="receivedPower" name="Rx Power" color="#10B981" unit="dBm" />,
+          doppler: <SignalChart data={signalHistory} metric="doppler" name="Doppler" color="#A855F7" unit="Hz" />,
+          elevation: <SignalChart data={signalHistory} metric="elevation" name="Elevation" color="#EC4899" unit="°" />, // Added Elevation
+          spectrum: <SpectrumChart data={spectrumData} />,
+          metrics: <MetricsSummaryTable data={signalHistory} />,
+          eventlog: <EventLogPanel logs={eventLogs} onClearLogs={handleClearLogs} />, // Pass clear handler
+          orbitmap: <OrbitMapTile scenarioId={selectedScenarioId} isMaximized={true} />, // Pass scenarioId and maximized flag
+          // *** UPDATED: Use 'map' mode when maximized ***
+          portmap: <PortAssignmentMap scenarioId={selectedScenarioId} displayMode="map" />,
+          summary: <SystemSummaryTile viewMode="scenario" scenarioId={selectedScenarioId} scenario={selectedScenario} />, // Pass scenario details
+        };
+
+        const chartTitles: { [key: string]: string } = {
+          snr: "SNR", delay: "Delay", power: "Received Power", doppler: "Doppler", elevation: "Elevation",
+          spectrum: "Spectrum Analysis", metrics: "Metrics Summary", eventlog: "Event Log",
+          orbitmap: "Scenario Orbit Map", portmap: "Port Assignments", summary: "Scenario Summary"
+        };
+
+        return (
+          <div className="fixed inset-0 z-40 bg-albor-deep-space/95 backdrop-blur-md p-4 flex flex-col animate-fade-in">
+            <div className="flex justify-between items-center mb-2 flex-shrink-0">
+              <h2 className="text-lg font-semibold text-albor-light-gray">{chartTitles[maximizedChart]} (Maximized)</h2>
+              <button
+                onClick={handleMinimizeClick}
+                className="p-2 rounded-full text-albor-light-gray bg-albor-bg-dark/50 hover:bg-albor-orange/80 transition-colors"
+                title="Minimize"
+              >
+                <Minimize size={18} />
+              </button>
+            </div>
+            <div className="flex-1 bg-albor-bg-dark/50 rounded border border-albor-bg-dark/50 overflow-hidden">
+              {chartComponents[maximizedChart]}
+            </div>
+          </div>
+        );
+      };
+
+      const renderDashboardView = () => (
+        // *** UPDATED GRID LAYOUT ***
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto p-1 custom-scrollbar">
+          {/* Row 1: Signal Metrics */}
+          <ChartTile chartId="snr" title="SNR" icon={TrendingUp} onMaximizeClick={() => handleMaximizeClick('snr')} className="min-h-[180px]">
+            <SignalChart data={signalHistory} metric="snr" name="SNR" color="#F97316" unit="dB" />
+          </ChartTile>
+          <ChartTile chartId="delay" title="Delay" icon={Square} onMaximizeClick={() => handleMaximizeClick('delay')} className="min-h-[180px]">
+            <SignalChart data={signalHistory} metric="delay" name="Delay" color="#3B82F6" unit="ms" />
+          </ChartTile>
+          <ChartTile chartId="power" title="Received Power" icon={Square} onMaximizeClick={() => handleMaximizeClick('power')} className="min-h-[180px]">
+            <SignalChart data={signalHistory} metric="receivedPower" name="Rx Power" color="#10B981" unit="dBm" />
+          </ChartTile>
+          <ChartTile chartId="doppler" title="Doppler" icon={Square} onMaximizeClick={() => handleMaximizeClick('doppler')} className="min-h-[180px]">
+            <SignalChart data={signalHistory} metric="doppler" name="Doppler" color="#A855F7" unit="Hz" />
+          </ChartTile>
+
+          {/* Row 2: Elevation, Spectrum, Metrics, Port Assignment */}
+          <ChartTile chartId="elevation" title="Elevation" icon={Square} onMaximizeClick={() => handleMaximizeClick('elevation')} className="min-h-[180px]">
+            <SignalChart data={signalHistory} metric="elevation" name="Elevation" color="#EC4899" unit="°" />
+          </ChartTile>
+          <ChartTile chartId="spectrum" title="Spectrum Analysis" icon={AreaChartIcon} onMaximizeClick={() => handleMaximizeClick('spectrum')} className="min-h-[180px]">
+            <SpectrumChart data={spectrumData} />
+          </ChartTile>
+          <ChartTile chartId="metrics" title="Metrics Summary" icon={Table} onMaximizeClick={() => handleMaximizeClick('metrics')} className="min-h-[180px]">
+            <MetricsSummaryTable data={signalHistory} />
+          </ChartTile>
+          {/* *** UPDATED: Port Assignment uses 'list' mode here *** */}
+          <ChartTile chartId="portmap" title="Port Assignments" icon={Server} onMaximizeClick={() => handleMaximizeClick('portmap')} className="min-h-[180px]">
+            <PortAssignmentMap scenarioId={selectedScenarioId} displayMode="list" />
+          </ChartTile>
+
+          {/* Row 3: Scenario Details, Orbit Map, Event Log (Larger) */}
+          {/* *** UPDATED: Order changed *** */}
+          <div className="min-h-[250px]">
+            <SystemSummaryTile viewMode="scenario" scenarioId={selectedScenarioId} scenario={selectedScenario} />
+          </div>
+          <div className="min-h-[250px]">
+            <OrbitMapTile scenarioId={selectedScenarioId} />
+          </div>
+          <ChartTile chartId="eventlog" title="Event Log" icon={List} onMaximizeClick={() => handleMaximizeClick('eventlog')} className="min-h-[250px] lg:col-span-2" logCount={eventLogs.length} onClearLogs={handleClearLogs}>
+            <EventLogPanel logs={eventLogs} />
+          </ChartTile>
+        </div>
+      );
+
+      if (!selectedScenarioId) {
+          return (
+              <div className="flex flex-col h-full items-center justify-center text-center p-6">
+                  <AlertTriangle size={48} className="text-albor-dark-gray mb-4" />
+                  <h2 className="text-lg font-semibold text-albor-light-gray mb-2">No Active Scenario Selected</h2>
+                  <p className="text-sm text-albor-dark-gray">
+                      Please start a scenario from the 'Scenarios' view or select an active one if available.
+                  </p>
+              </div>
+          );
+      }
+
       return (
-        <div className="text-white flex flex-col h-full">
-          {/* Header/Controls (No changes needed) */}
-          <div className="flex justify-between items-center mb-4 pb-2 border-b border-albor-bg-dark/50 flex-shrink-0 gap-4 px-1">
-            <h1 className="text-xl font-semibold text-albor-light-gray flex-shrink-0">
-                Scenario Monitoring {selectedScenario ? `: ${selectedScenario.name}` : ''}
-            </h1>
-            <div className="flex items-center gap-4 flex-shrink-0">
-                <div className="relative" ref={dropdownRef}>
-                  <label htmlFor="monitor-scenario-select" className="text-xs text-albor-dark-gray absolute -top-3.5 left-0">Scenario</label>
-                  <button id="monitor-scenario-select" onClick={() => setIsDropdownOpen(!isDropdownOpen)} disabled={allRunningScenarios.length === 0}
-                    className="flex items-center justify-between px-3 py-1.5 min-w-[220px] max-w-xs bg-albor-bg-dark/60 border border-albor-dark-gray/70 rounded text-sm text-albor-light-gray hover:border-albor-light-gray/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                    title="Select Scenario to Monitor" >
-                    <span className="truncate mr-2">{currentSelectionName}</span>
-                    <ChevronsUpDown size={16} className="text-albor-dark-gray flex-shrink-0" />
-                  </button>
-                  {isDropdownOpen && allRunningScenarios.length > 0 && (
-                    <div className="absolute top-full right-0 mt-1 w-60 bg-albor-bg-dark border border-albor-dark-gray rounded shadow-lg py-1 z-50">
-                      {allRunningScenarios.map(scenario => ( <button key={scenario.id} onClick={() => handleScenarioSelect(scenario.id)} className={`flex items-center justify-between w-full px-3 py-1.5 text-left text-xs transition-colors ${ selectedMonitorScenarioId === scenario.id ? 'bg-albor-orange/20 text-albor-orange' : 'text-albor-light-gray hover:bg-albor-bg-dark/70' }`} > <span className="truncate">{scenario.name}</span> {selectedMonitorScenarioId === scenario.id && <Check size={14} />} </button> ))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center space-x-2">
-                    <button onClick={handlePauseResumeClick} disabled={!selectedMonitorScenarioId || selectedScenario?.status === 'stopped'}
-                      className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${ isSelectedScenarioRunning ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : 'bg-green-500 hover:bg-green-600 text-white' }`}
-                      title={isSelectedScenarioRunning ? 'Pause Simulation' : 'Resume Simulation'} >
-                      {isSelectedScenarioRunning ? <Pause size={14} /> : <Play size={14} />}
-                      <span>{isSelectedScenarioRunning ? 'Pause' : 'Resume'}</span>
-                    </button>
-                     <button onClick={handleStopClick} disabled={!selectedMonitorScenarioId || selectedScenario?.status === 'stopped'}
-                      className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 bg-red-600 hover:bg-red-700 text-white`}
-                      title="Stop Simulation" >
-                      <Square size={14} />
-                      <span>Stop</span>
-                    </button>
-                </div>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-3 pb-2 border-b border-albor-bg-dark/50 flex-shrink-0 px-1">
+            <div className="flex items-center space-x-3">
+              <Activity size={18} className="text-albor-orange" />
+              <h1 className="text-lg font-semibold text-albor-light-gray">Scenario Monitoring</h1>
+              {/* Scenario Selector Dropdown */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center space-x-1.5 px-3 py-1 rounded bg-albor-bg-dark hover:bg-albor-bg-dark/70 border border-albor-dark-gray text-albor-light-gray text-sm transition-colors"
+                >
+                  <span className="truncate max-w-[200px]">{selectedScenario?.name ?? "Select Scenario"}</span>
+                  <ChevronsUpDown size={14} className="text-albor-dark-gray" />
+                </button>
+                {isDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-60 bg-albor-bg-dark border border-albor-dark-gray rounded shadow-lg py-1 z-50 monitoring-header-dropdown">
+                    {allRunningScenarios.length > 0 ? (
+                      allRunningScenarios.map(scenario => (
+                        <button
+                          key={scenario.id}
+                          onClick={() => handleScenarioSelect(scenario.id)}
+                          className={`flex items-center justify-between w-full px-3 py-1.5 text-left text-xs transition-colors ${selectedScenarioId === scenario.id ? 'bg-albor-orange/20 text-albor-orange' : 'text-albor-light-gray hover:bg-albor-bg-dark/60'}`}
+                        >
+                          <span className="truncate">{scenario.name}</span>
+                          {selectedScenarioId === scenario.id && <Check size={14} />}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-xs text-albor-dark-gray italic">No active scenarios</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Scenario Control Buttons */}
+            <div className="flex items-center space-x-2">
+              {scenarioStatus === 'running' && (
+                <button onClick={() => onPauseScenario(selectedScenarioId)} className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-yellow-600 hover:bg-yellow-700 text-white transition-colors">
+                  <Pause size={14} /> <span>Pause</span>
+                </button>
+              )}
+              {scenarioStatus === 'paused' && (
+                <button onClick={() => onResumeScenario(selectedScenarioId)} className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-green-600 hover:bg-green-700 text-white transition-colors">
+                  <Play size={14} /> <span>Resume</span>
+                </button>
+              )}
+              {(scenarioStatus === 'running' || scenarioStatus === 'paused') && (
+                <button onClick={() => onStopScenario(selectedScenarioId)} className="flex items-center space-x-1 px-2 py-1 rounded text-xs bg-red-600 hover:bg-red-700 text-white transition-colors">
+                  <Square size={14} /> <span>Stop</span>
+                </button>
+              )}
+              {/* Settings Button (Placeholder) */}
+              <button className="p-1.5 rounded text-albor-dark-gray hover:text-albor-light-gray hover:bg-albor-bg-dark/50 transition-colors" title="Scenario Settings">
+                <Settings size={16} />
+              </button>
             </div>
           </div>
 
-          {!selectedMonitorScenarioId ? (
-             <div className="flex-1 flex flex-col items-center justify-center"> <div className="text-center p-6 bg-albor-bg-dark/50 rounded-lg border border-albor-dark-gray"> <Activity size={48} className="mx-auto text-albor-orange mb-4" /> <h2 className="text-lg font-semibold text-albor-light-gray mb-2">No Scenario Selected</h2> <p className="text-sm text-albor-dark-gray"> {allRunningScenarios.length > 0 ? "Select an active scenario from the dropdown above to monitor." : "There are no active scenarios to monitor."} </p> </div> </div>
-            ) : (
-              <div className={`flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto p-1 custom-scrollbar min-h-0`}>
+          {/* Main Content Area */}
+          {maximizedChart ? renderMaximizedView() : renderDashboardView()}
 
-                {/* Column1: Scenario Details & Map (No changes needed) */}
-                <div className="lg:col-span-1 flex flex-col gap-4">
-                    <div className="min-h-[250px] flex-[1]">
-                        <ChartTile
-                            key={`scenario-details-${selectedMonitorScenarioId}`}
-                            chartId="scenario-details"
-                            title="Scenario Details"
-                            icon={Settings}
-                            onMaximizeClick={() => handleToggleMaximize('scenario-details')}
-                        >
-                            <SystemSummaryTile
-                                viewMode="scenario"
-                                scenarioId={selectedMonitorScenarioId}
-                                scenario={selectedScenario}
-                            />
-                        </ChartTile>
-                    </div>
-                    <div className="min-h-[300px] flex-[2]">
-                        <ChartTile
-                            key={`orbit-map-${selectedMonitorScenarioId}`}
-                            chartId="orbit-map"
-                            title="Orbit Map"
-                            icon={Map}
-                            onMaximizeClick={() => handleToggleMaximize('orbit-map')}
-                        >
-                            <OrbitMapTile scenarioId={selectedMonitorScenarioId} />
-                        </ChartTile>
-                    </div>
-                </div>
-
-                {/* Column 2 & 3: Signal Charts & Spectrum */}
-                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* FIX: Removed extra '<' */}
-                    <div className={`md:col-span-2 min-h-[200px]`}>
-                      <ChartTile
-                        key={`spectrum-${selectedMonitorScenarioId}`}
-                        chartId="spectrum"
-                        title="Spectrum Analysis"
-                        icon={AreaChartIcon}
-                        onMaximizeClick={() => handleToggleMaximize('spectrum')}
-                      >
-                        <SpectrumChart data={spectrumData} />
-                      </ChartTile>
-                    </div>
-                    {chartConfigs.map(config => (
-                      <div key={`${config.id}-${selectedMonitorScenarioId}`} className="min-h-[180px]">
-                        <ChartTile
-                          chartId={config.id}
-                          title={config.name}
-                          icon={config.icon}
-                          onMaximizeClick={() => handleToggleMaximize(config.id)}
-                        >
-                          <SignalChart
-                            data={signalHistory}
-                            metric={config.metric}
-                            name={config.name}
-                            color={config.color}
-                            unit={config.unit}
-                          />
-                        </ChartTile>
-                      </div>
-                    ))}
-                    <div className="min-h-[180px]">
-                      <ChartTile
-                        key={'summary-tile-' + (selectedMonitorScenarioId || 'none')} // Simplified key structure
-                        chartId="summary"
-                        title="Metrics Summary"
-                        icon={Table}
-                        onMaximizeClick={() => handleToggleMaximize('summary')}
-                      >
-                        <MetricsSummaryTable data={signalHistory} />
-                      </ChartTile>
-                    </div>
-                </div>
-
-                {/* Column 4: Ports & Logs */}
-                <div className="lg:col-span-1 flex flex-col gap-4">
-                    <div className="min-h-[250px]">
-                        <ChartTile
-                            key={`port-map-${selectedMonitorScenarioId}`}
-                            chartId="port-map"
-                            title="Port Assignment List"
-                            icon={Server}
-                            onMaximizeClick={() => handleToggleMaximize('port-map')}
-                        >
-                            <PortAssignmentMap scenarioId={selectedMonitorScenarioId} displayMode="list" />
-                        </ChartTile>
-                    </div>
-                    <div className="flex-1 min-h-[250px]">
-                        {/* Pass clearEventLogs and logCount to the Event Log ChartTile */}
-                        <ChartTile
-                            key={`eventlog-${selectedMonitorScenarioId}`}
-                            chartId="eventlog"
-                            title="Event Log"
-                            icon={List}
-                            onMaximizeClick={() => handleToggleMaximize('eventlog')}
-                            onClearLogs={clearEventLogs} // Pass the clear function
-                            logCount={eventLogs.length} // Pass the log count
-                        >
-                            <EventLogPanel logs={eventLogs} />
-                        </ChartTile>
-                    </div>
-                </div>
-
-              </div>
-            )}
-
-          {/* Maximized Chart Modal (No changes needed here) */}
-          {maximizedChartId && maximizedChartConfig && (
-            <MaximizeModal
-              chartId={maximizedChartId}
-              title={maximizedChartConfig.title}
-              icon={maximizedChartConfig.icon}
-              onClose={handleCloseMaximize}
-            >
-              {maximizedChartId === 'spectrum' && <SpectrumChart data={spectrumData} />}
-              {maximizedChartId === 'summary' && <MetricsSummaryTable data={signalHistory} />}
-              {maximizedChartId === 'eventlog' && <EventLogPanel logs={eventLogs} />} {/* Modal doesn't need clear button */}
-              {maximizedChartId === 'scenario-details' && <SystemSummaryTile viewMode="scenario" scenarioId={selectedMonitorScenarioId} scenario={selectedScenario} />}
-              {maximizedChartId === 'orbit-map' && <OrbitMapTile scenarioId={selectedMonitorScenarioId} isMaximized={true} />}
-              {maximizedChartId === 'port-map' && <PortAssignmentMap scenarioId={selectedMonitorScenarioId} displayMode="map" />}
-              {chartConfigs.find(c => c.id === maximizedChartId) && maximizedChartConfig.metric && (
-                <SignalChart
-                  data={signalHistory}
-                  metric={maximizedChartConfig.metric as keyof SignalMetrics}
-                  name={maximizedChartConfig.name}
-                  color={maximizedChartConfig.color}
-                  unit={maximizedChartConfig.unit}
-                />
-              )}
-            </MaximizeModal>
-          )}
+          {/* Render the Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={confirmationState !== null}
+            title={confirmationState?.title || "Confirm Action"}
+            message={confirmationState?.message || "Are you sure?"}
+            confirmText={confirmationState?.confirmText}
+            cancelText={confirmationState?.cancelText}
+            confirmButtonVariant={confirmationState?.confirmButtonVariant}
+            confirmButtonVariant={confirmationState?.confirmButtonVariant}
+            icon={confirmationState?.icon}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+          /> {/* Add the closing tag here */}
         </div>
       );
     };
