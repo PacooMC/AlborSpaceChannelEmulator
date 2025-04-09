@@ -11,14 +11,14 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         Play, Pause, Settings, Maximize, Minimize, Table, Activity, AlertTriangle,
         ChevronDown, Check, ChevronsUpDown, AreaChart as AreaChartIcon, LineChart as LineChartIcon,
         List, Info, AlertCircle, WifiOff, X as CloseIcon,
-        Square, Map, Server, TrendingUp // Added TrendingUp for Elevation
+        Square, Map, Server, TrendingUp, Trash2 // Added Trash2 for clear logs
     } from 'lucide-react';
     import type { Scenario, ScenarioStatus } from '../../content/scenarios';
     import { getSystemSummary, SystemSummaryStats } from '../../content/systemSummary'; // Import summary data fetcher
 
     // --- Child Components ---
 
-    // Chart Tile Wrapper
+    // Chart Tile Wrapper - Modified to pass onClearLogs to EventLogPanel if needed
     interface ChartTileProps {
       chartId: string;
       title: string;
@@ -26,8 +26,23 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
       children: React.ReactNode;
       className?: string;
       onMaximizeClick: () => void;
+      // Add optional props for EventLogPanel specifics
+      logCount?: number; // Pass log count to disable clear button
+      onClearLogs?: () => void; // Pass clear function
     }
-    const ChartTile: React.FC<ChartTileProps> = ({ chartId, title, icon: Icon, children, className = '', onMaximizeClick }) => {
+    const ChartTile: React.FC<ChartTileProps> = ({
+        chartId,
+        title,
+        icon: Icon,
+        children,
+        className = '',
+        onMaximizeClick,
+        logCount, // Receive log count
+        onClearLogs // Receive clear function
+    }) => {
+        const isEventLogPanel = chartId === 'eventlog';
+        const canClearLogs = isEventLogPanel && logCount !== undefined && logCount > 0;
+
         return (
           <div className={`
             bg-albor-bg-dark/80 backdrop-blur-sm rounded border border-albor-bg-dark/50
@@ -39,24 +54,42 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
                  {Icon && <Icon size={12} className="text-albor-dark-gray" />}
                  <h3 className="text-xs font-semibold text-albor-light-gray">{title}</h3>
               </div>
-              <button
-                onClick={onMaximizeClick}
-                className="p-1 rounded text-albor-dark-gray hover:text-albor-light-gray hover:bg-albor-bg-dark/50 transition-colors"
-                title="Maximize"
-              >
-                <Maximize size={12} />
-              </button>
+              <div className="flex items-center space-x-1">
+                {/* Clear Logs Button (only for Event Log panel) */}
+                {isEventLogPanel && onClearLogs && (
+                    <button
+                        onClick={onClearLogs}
+                        disabled={!canClearLogs}
+                        className={`p-1 rounded text-albor-dark-gray transition-colors ${canClearLogs ? 'hover:text-red-400 hover:bg-albor-bg-dark/50' : 'opacity-50 cursor-not-allowed'}`}
+                        title={canClearLogs ? "Clear Logs" : "No logs to clear"}
+                    >
+                        <Trash2 size={12} />
+                    </button>
+                )}
+                {/* Maximize Button */}
+                <button
+                    onClick={onMaximizeClick}
+                    className="p-1 rounded text-albor-dark-gray hover:text-albor-light-gray hover:bg-albor-bg-dark/50 transition-colors"
+                    title="Maximize"
+                >
+                    <Maximize size={12} />
+                </button>
+              </div>
             </div>
             <div className="flex-1 min-h-0 w-full relative">
               <div className="absolute inset-0">
-                 {children}
+                 {/* Pass onClearLogs down if the child is EventLogPanel */}
+                 {React.isValidElement(children) && chartId === 'eventlog'
+                    ? React.cloneElement(children as React.ReactElement<any>, { onClearLogs })
+                    : children
+                 }
               </div>
             </div>
           </div>
         );
     };
 
-    // Signal Chart Component
+    // Signal Chart Component (No changes needed)
     interface SignalChartProps { data: SignalMetrics[]; metric: keyof SignalMetrics; name: string; color: string; unit: string; }
     const SignalChart: React.FC<SignalChartProps> = ({ data, metric, name, color, unit }) => (
         <ResponsiveContainer width="100%" height="100%">
@@ -70,7 +103,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         </ResponsiveContainer>
     );
 
-    // Spectrum Chart Component
+    // Spectrum Chart Component (No changes needed)
     interface SpectrumChartProps { data: SpectrumDataPoint[]; }
     const SpectrumChart: React.FC<SpectrumChartProps> = ({ data }) => (
         <ResponsiveContainer width="100%" height="100%">
@@ -85,7 +118,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         </ResponsiveContainer>
     );
 
-    // Metrics Summary Table Component
+    // Metrics Summary Table Component (No changes needed)
     interface MetricsSummaryTableProps { data: SignalMetrics[]; }
     const MetricsSummaryTable: React.FC<MetricsSummaryTableProps> = ({ data }) => {
       const summary = useMemo(() => { if (data.length === 0) return { current: null, min: {}, max: {} }; const current = data[data.length - 1]; const metrics: (keyof SignalMetrics)[] = ['snr', 'delay', 'receivedPower', 'doppler', 'elevation']; const minMax = metrics.reduce((acc, key) => { const values = data.map(d => d[key]).filter(v => typeof v === 'number'); if (values.length > 0) { acc.min[key] = Math.min(...values); acc.max[key] = Math.max(...values); } return acc; }, { min: {} as Partial<SignalMetrics>, max: {} as Partial<SignalMetrics> }); return { current, ...minMax }; }, [data]);
@@ -94,16 +127,22 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
       return ( <div className="h-full w-full overflow-auto p-1 custom-scrollbar"> <table className="w-full text-left text-xs"> <thead> <tr className="text-albor-dark-gray border-b border-albor-bg-dark"> <th className="py-1 px-2">Metric</th> <th className="py-1 px-2 text-right">Current</th> <th className="py-1 px-2 text-right">Min</th> <th className="py-1 px-2 text-right">Max</th> </tr> </thead> <tbody className="divide-y divide-albor-bg-dark/50"> {metricsToDisplay.map(({ key, name }) => ( <tr key={key} className="hover:bg-albor-bg-dark/30"> <td className="py-1.5 px-2 font-medium text-albor-light-gray">{name}</td> <td className="py-1.5 px-2 text-right font-mono">{formatValue(key, summary.current?.[key])}</td> <td className="py-1.5 px-2 text-right font-mono text-albor-dark-gray">{formatValue(key, summary.min[key])}</td> <td className="py-1.5 px-2 text-right font-mono text-albor-dark-gray">{formatValue(key, summary.max[key])}</td> </tr> ))} </tbody> </table> </div> );
     };
 
-    // Event Log Panel Component - Ensure h-full for modal
-    interface EventLogPanelProps { logs: LogEntry[]; }
-    const EventLogPanel: React.FC<EventLogPanelProps> = ({ logs }) => {
+    // Event Log Panel Component - Modified to accept onClearLogs
+    interface EventLogPanelProps {
+        logs: LogEntry[];
+        onClearLogs?: () => void; // Make optional for modal usage
+    }
+    const EventLogPanel: React.FC<EventLogPanelProps> = ({ logs, onClearLogs }) => {
         const logEndRef = useRef<HTMLDivElement>(null);
         useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
         const getLogLevelInfo = (level: LogLevel): { icon: React.ElementType, color: string } => { switch (level) { case 'info': return { icon: Info, color: 'text-blue-400' }; case 'warn': return { icon: AlertTriangle, color: 'text-yellow-400' }; case 'error': return { icon: AlertCircle, color: 'text-red-500' }; case 'debug': return { icon: WifiOff, color: 'text-gray-500' }; default: return { icon: Info, color: 'text-gray-400' }; } };
+
+        // Note: The clear button is now rendered in the ChartTile component
+        // We just need the logs rendering logic here.
+
         return (
-            // Added h-full here to ensure it fills the modal space
             <div className="h-full w-full overflow-y-auto custom-scrollbar pr-1 flex flex-col">
-                <div className="space-y-1.5 flex-1"> {/* Allow inner div to grow if needed */}
+                <div className="space-y-1.5 flex-1">
                     {Array.isArray(logs) ? logs.map(log => {
                         const { icon: Icon, color } = getLogLevelInfo(log.level);
                         return (
@@ -122,7 +161,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
                         <p className="text-xs text-albor-dark-gray italic text-center py-4">Log data is unavailable.</p>
                     )}
                     {Array.isArray(logs) && logs.length === 0 && (
-                        <p className="text-xs text-albor-dark-gray italic text-center py-4">No log entries yet.</p>
+                        <p className="text-xs text-albor-dark-gray italic text-center py-4">No log entries.</p>
                     )}
                     <div ref={logEndRef} />
                 </div>
@@ -130,7 +169,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         );
     };
 
-    // Modal Component for Maximized Chart
+    // Modal Component for Maximized Chart (No changes needed)
     interface MaximizeModalProps { chartId: string; title: string; icon?: React.ElementType; children: React.ReactNode; onClose: () => void; }
     const MaximizeModal: React.FC<MaximizeModalProps> = ({ chartId, title, icon: Icon, children, onClose }) => (
         <div className="fixed inset-0 bg-albor-deep-space/90 backdrop-blur-sm z-50 flex flex-col p-4 animate-fade-in">
@@ -145,9 +184,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
                 <CloseIcon size={18} />
               </button>
             </div>
-            {/* Ensure this container allows child to take full height */}
             <div className="flex-1 w-full h-full overflow-hidden min-h-0 relative">
-                {/* The child content is placed absolutely, should fill this parent */}
                 <div className="absolute inset-0">
                     {children}
                 </div>
@@ -180,71 +217,57 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         onResumeScenario,
         onStopScenario
     }) => {
-      // Internal state to track the *actually* monitored scenario
       const [selectedMonitorScenarioId, setSelectedMonitorScenarioId] = useState<string | null>(null);
       const [signalHistory, setSignalHistory] = useState<SignalMetrics[]>([]);
       const [spectrumData, setSpectrumData] = useState<SpectrumDataPoint[]>([]);
-      const [eventLogs, setEventLogs] = useState<LogEntry[]>([]);
+      const [eventLogs, setEventLogs] = useState<LogEntry[]>([]); // State for logs
       const [maximizedChartId, setMaximizedChartId] = useState<string | null>(null);
       const [isDropdownOpen, setIsDropdownOpen] = useState(false);
       const dropdownRef = useRef<HTMLDivElement>(null);
 
-      // --- Effect to handle scenario selection logic ---
+      // --- Effect to handle scenario selection logic (No changes needed) ---
       useEffect(() => {
-        // Case 1: Prop provides a specific scenario ID
         if (scenarioIdToMonitor !== null) {
-            // If the prop ID is different from the current internal state, update internal state
             if (scenarioIdToMonitor !== selectedMonitorScenarioId) {
                 console.log(`MonitoringView: Prop changed, setting scenario to: ${scenarioIdToMonitor}`);
                 setSelectedMonitorScenarioId(scenarioIdToMonitor);
             }
         }
-        // Case 2: Prop is null (no specific scenario requested by App)
         else {
-            // If internal state is also null (meaning we haven't selected one yet)
             if (selectedMonitorScenarioId === null) {
-                // Find the first available (running or paused) scenario
                 const firstAvailable = allRunningScenarios.find(s => s.status === 'running' || s.status === 'paused');
                 if (firstAvailable) {
                     console.log("MonitoringView: No prop ID, setting default scenario to:", firstAvailable.id);
-                    setSelectedMonitorScenarioId(firstAvailable.id); // Set the default
+                    setSelectedMonitorScenarioId(firstAvailable.id);
                 } else {
                     console.log("MonitoringView: No prop ID and no available scenarios to set as default.");
-                    // Keep selectedMonitorScenarioId as null
                 }
             }
-            // If internal state already has an ID, don't change it just because prop is null
-            // This allows the user to manually select a different scenario via dropdown
         }
-      }, [scenarioIdToMonitor, allRunningScenarios, selectedMonitorScenarioId]); // Dependencies
+      }, [scenarioIdToMonitor, allRunningScenarios, selectedMonitorScenarioId]);
 
-
-      // Find the currently selected scenario object based on internal state
       const selectedScenario = useMemo(() => {
         return allRunningScenarios.find(s => s.id === selectedMonitorScenarioId);
       }, [selectedMonitorScenarioId, allRunningScenarios]);
 
-      // Determine if the selected scenario is currently running or paused
       const isSelectedScenarioRunning = selectedScenario?.status === 'running';
 
-      // Effect for data loading when selected ID changes
+      // Effect for data loading when selected ID changes (No changes needed)
       useEffect(() => {
         if (selectedMonitorScenarioId) {
           console.log(`MonitoringView: Loading data for ${selectedMonitorScenarioId}`);
           setSignalHistory(generateInitialSignalHistory(selectedMonitorScenarioId, MAX_HISTORY));
           setSpectrumData(generateSpectrumData(selectedMonitorScenarioId));
-          setEventLogs(generateInitialLogs(selectedMonitorScenarioId, MAX_LOGS));
+          setEventLogs(generateInitialLogs(selectedMonitorScenarioId, MAX_LOGS)); // Load initial logs
         } else {
-          // Clear data if no scenario is selected
           console.log("MonitoringView: No scenario selected, clearing data.");
           setSignalHistory([]);
           setSpectrumData([]);
-          setEventLogs([]);
+          setEventLogs([]); // Clear logs
         }
-      }, [selectedMonitorScenarioId]); // Rerun only when selected ID changes
+      }, [selectedMonitorScenarioId]);
 
-
-      // Effect for periodic updates (only when the selected scenario is 'running')
+      // Effect for periodic updates (No changes needed)
       useEffect(() => {
         let intervalId: NodeJS.Timeout | null = null;
         if (isSelectedScenarioRunning && selectedMonitorScenarioId) {
@@ -253,7 +276,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
             setSignalHistory(prev => [...prev, generateSignalMetrics(selectedMonitorScenarioId, prev[prev.length - 1])].slice(-MAX_HISTORY));
             setSpectrumData(generateSpectrumData(selectedMonitorScenarioId));
             const newLog = generateLogEntry(selectedMonitorScenarioId);
-            if (newLog) setEventLogs(prevLogs => [...prevLogs, newLog].slice(-MAX_LOGS));
+            if (newLog) setEventLogs(prevLogs => [...prevLogs, newLog].slice(-MAX_LOGS)); // Update logs
           }, 1000);
         } else {
             console.log(`MonitoringView: Stopping updates for ${selectedMonitorScenarioId} (Status: ${selectedScenario?.status})`);
@@ -261,17 +284,16 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         return () => { if (intervalId) { console.log(`MonitoringView: Clearing update interval for ${selectedMonitorScenarioId}`); clearInterval(intervalId); } };
       }, [isSelectedScenarioRunning, selectedMonitorScenarioId]);
 
-      // Effect for closing dropdown
+      // Effect for closing dropdown (No changes needed)
       useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setIsDropdownOpen(false); };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
       }, []);
 
-
+      // --- Handlers ---
       const handleToggleMaximize = (chartId: string) => setMaximizedChartId(chartId);
       const handleCloseMaximize = () => setMaximizedChartId(null);
-      // Update internal state when user selects from dropdown
       const handleScenarioSelect = (id: string | null) => {
           if (id !== selectedMonitorScenarioId) {
               console.log("MonitoringView: User selected scenario:", id);
@@ -279,8 +301,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
           }
           setIsDropdownOpen(false);
       };
-
-      // Control Button Handlers
       const handlePauseResumeClick = () => {
         if (!selectedMonitorScenarioId) return;
         if (isSelectedScenarioRunning) { onPauseScenario?.(selectedMonitorScenarioId); }
@@ -293,12 +313,21 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
         }
       };
 
+      // --- NEW: Handler to clear logs ---
+      const clearEventLogs = useCallback(() => {
+          if (window.confirm("Are you sure you want to clear the event log?")) {
+              console.log("MonitoringView: Clearing event logs.");
+              setEventLogs([]);
+          }
+      }, []);
+      // --- End New Handler ---
+
       const chartConfigs = useMemo(() => [
         { id: 'snr', metric: 'snr' as keyof SignalMetrics, name: 'SNR', color: '#34D399', unit: 'dB', icon: LineChartIcon },
         { id: 'delay', metric: 'delay' as keyof SignalMetrics, name: 'Delay', color: '#60A5FA', unit: 'ms', icon: LineChartIcon },
         { id: 'power', metric: 'receivedPower' as keyof SignalMetrics, name: 'Rx Power', color: '#F87171', unit: 'dBm', icon: LineChartIcon },
         { id: 'doppler', metric: 'doppler' as keyof SignalMetrics, name: 'Doppler', color: '#FACC15', unit: 'Hz', icon: LineChartIcon },
-        { id: 'elevation', metric: 'elevation' as keyof SignalMetrics, name: 'Elevation', color: '#A78BFA', unit: '°', icon: TrendingUp },
+        { id: 'elevation',metric: 'elevation' as keyof SignalMetrics, name: 'Elevation', color: '#A78BFA', unit: '°', icon: TrendingUp },
       ], []);
 
       const currentSelectionName = selectedScenario?.name ?? 'Select Scenario...';
@@ -330,13 +359,12 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
       // --- Main Render Logic ---
       return (
         <div className="text-white flex flex-col h-full">
-          {/* Header/Controls */}
+          {/* Header/Controls (No changes needed) */}
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-albor-bg-dark/50 flex-shrink-0 gap-4 px-1">
             <h1 className="text-xl font-semibold text-albor-light-gray flex-shrink-0">
                 Scenario Monitoring {selectedScenario ? `: ${selectedScenario.name}` : ''}
             </h1>
             <div className="flex items-center gap-4 flex-shrink-0">
-                {/* Scenario Selector Dropdown */}
                 <div className="relative" ref={dropdownRef}>
                   <label htmlFor="monitor-scenario-select" className="text-xs text-albor-dark-gray absolute -top-3.5 left-0">Scenario</label>
                   <button id="monitor-scenario-select" onClick={() => setIsDropdownOpen(!isDropdownOpen)} disabled={allRunningScenarios.length === 0}
@@ -351,7 +379,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
                     </div>
                   )}
                 </div>
-                {/* Simulation Control Buttons */}
                 <div className="flex items-center space-x-2">
                     <button onClick={handlePauseResumeClick} disabled={!selectedMonitorScenarioId || selectedScenario?.status === 'stopped'}
                       className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${ isSelectedScenarioRunning ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : 'bg-green-500 hover:bg-green-600 text-white' }`}
@@ -369,14 +396,12 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
             </div>
           </div>
 
-          {/* Conditional Rendering for No Scenario Selected */}
           {!selectedMonitorScenarioId ? (
              <div className="flex-1 flex flex-col items-center justify-center"> <div className="text-center p-6 bg-albor-bg-dark/50 rounded-lg border border-albor-dark-gray"> <Activity size={48} className="mx-auto text-albor-orange mb-4" /> <h2 className="text-lg font-semibold text-albor-light-gray mb-2">No Scenario Selected</h2> <p className="text-sm text-albor-dark-gray"> {allRunningScenarios.length > 0 ? "Select an active scenario from the dropdown above to monitor." : "There are no active scenarios to monitor."} </p> </div> </div>
             ) : (
-              /* Main Grid Area */
               <div className={`flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto p-1 custom-scrollbar min-h-0`}>
 
-                {/* Column 1: Scenario Details & Map */}
+                {/* Column1: Scenario Details & Map (No changes needed) */}
                 <div className="lg:col-span-1 flex flex-col gap-4">
                     <div className="min-h-[250px] flex-[1]">
                         <ChartTile
@@ -408,6 +433,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 
                 {/* Column 2 & 3: Signal Charts & Spectrum */}
                 <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* FIX: Removed extra '<' */}
                     <div className={`md:col-span-2 min-h-[200px]`}>
                       <ChartTile
                         key={`spectrum-${selectedMonitorScenarioId}`}
@@ -439,7 +465,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
                     ))}
                     <div className="min-h-[180px]">
                       <ChartTile
-                        key={`summary-${selectedMonitorScenarioId}`}
+                        key={'summary-tile-' + (selectedMonitorScenarioId || 'none')} // Simplified key structure
                         chartId="summary"
                         title="Metrics Summary"
                         icon={Table}
@@ -464,12 +490,15 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
                         </ChartTile>
                     </div>
                     <div className="flex-1 min-h-[250px]">
+                        {/* Pass clearEventLogs and logCount to the Event Log ChartTile */}
                         <ChartTile
                             key={`eventlog-${selectedMonitorScenarioId}`}
                             chartId="eventlog"
                             title="Event Log"
                             icon={List}
                             onMaximizeClick={() => handleToggleMaximize('eventlog')}
+                            onClearLogs={clearEventLogs} // Pass the clear function
+                            logCount={eventLogs.length} // Pass the log count
                         >
                             <EventLogPanel logs={eventLogs} />
                         </ChartTile>
@@ -479,7 +508,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
               </div>
             )}
 
-          {/* Maximized Chart Modal */}
+          {/* Maximized Chart Modal (No changes needed here) */}
           {maximizedChartId && maximizedChartConfig && (
             <MaximizeModal
               chartId={maximizedChartId}
@@ -487,10 +516,9 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
               icon={maximizedChartConfig.icon}
               onClose={handleCloseMaximize}
             >
-              {/* Render the correct maximized content */}
               {maximizedChartId === 'spectrum' && <SpectrumChart data={spectrumData} />}
               {maximizedChartId === 'summary' && <MetricsSummaryTable data={signalHistory} />}
-              {maximizedChartId === 'eventlog' && <EventLogPanel logs={eventLogs} />}
+              {maximizedChartId === 'eventlog' && <EventLogPanel logs={eventLogs} />} {/* Modal doesn't need clear button */}
               {maximizedChartId === 'scenario-details' && <SystemSummaryTile viewMode="scenario" scenarioId={selectedMonitorScenarioId} scenario={selectedScenario} />}
               {maximizedChartId === 'orbit-map' && <OrbitMapTile scenarioId={selectedMonitorScenarioId} isMaximized={true} />}
               {maximizedChartId === 'port-map' && <PortAssignmentMap scenarioId={selectedMonitorScenarioId} displayMode="map" />}
